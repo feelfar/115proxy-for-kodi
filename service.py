@@ -899,12 +899,12 @@ class MyHandler(BaseHTTPRequestHandler):
 				if data['state']:
 					def sort(ctx):
 						for title, url in [
-										('从新到旧','/files?'+urllib.urlencode({'cid': cid,'offset':0,'typefilter':typefilter,'cursorttype':0,'searchvalue':searchvalue})),
-										('从旧到新','/files?'+urllib.urlencode({'cid': cid,'offset':0,'typefilter':typefilter,'cursorttype':1,'searchvalue':searchvalue})),
-										('从小到大','/files?'+urllib.urlencode({'cid': cid,'offset':0,'typefilter':typefilter,'cursorttype':2,'searchvalue':searchvalue})),
-										('从大到小','/files?'+urllib.urlencode({'cid': cid,'offset':0,'typefilter':typefilter,'cursorttype':3,'searchvalue':searchvalue})),
-										('从A到Z','/files?'+urllib.urlencode({'cid': cid,'offset':0,'typefilter':typefilter,'cursorttype':4,'searchvalue':searchvalue})),
-										('从Z到A','/files?'+urllib.urlencode({'cid': cid,'offset':0,'typefilter':typefilter,'cursorttype':5,'searchvalue':searchvalue}))]:
+										('从新到旧','/files?'+urllib.urlencode({'cid': cid,'offset':0,'typefilter':typefilter,'cursorttype':0,'searchvalue':searchvalue,'star': star})),
+										('从旧到新','/files?'+urllib.urlencode({'cid': cid,'offset':0,'typefilter':typefilter,'cursorttype':1,'searchvalue':searchvalue,'star': star})),
+										('从小到大','/files?'+urllib.urlencode({'cid': cid,'offset':0,'typefilter':typefilter,'cursorttype':2,'searchvalue':searchvalue,'star': star})),
+										('从大到小','/files?'+urllib.urlencode({'cid': cid,'offset':0,'typefilter':typefilter,'cursorttype':3,'searchvalue':searchvalue,'star': star})),
+										('从A到Z','/files?'+urllib.urlencode({'cid': cid,'offset':0,'typefilter':typefilter,'cursorttype':4,'searchvalue':searchvalue,'star': star})),
+										('从Z到A','/files?'+urllib.urlencode({'cid': cid,'offset':0,'typefilter':typefilter,'cursorttype':5,'searchvalue':searchvalue,'star': star}))]:
 							yield  td(a(href=url,class_='sort')(title))
 					def filters(ctx):
 						for title, url in [
@@ -951,11 +951,11 @@ class MyHandler(BaseHTTPRequestHandler):
 							offlast=count
 						yield td('翻页：')
 						if curpage>1:
-							url='/files?'+urllib.urlencode({'cid': cid,'offset':0,'cursorttype':cursorttype,'typefilter':typefilter,'searchvalue':searchvalue})
+							url='/files?'+urllib.urlencode({'cid': cid,'offset':0,'cursorttype':cursorttype,'typefilter':typefilter,'searchvalue':searchvalue,'star': star})
 							yield td(a(href=url,title='第一页',class_='pagesel')('|<'),class_='pagesel')
 							
 							url='/files?'+urllib.urlencode({'cid': cid,'offset':pageitem*(curpage-2),
-							'cursorttype':cursorttype,'typefilter':typefilter,'searchvalue':searchvalue})
+							'cursorttype':cursorttype,'typefilter':typefilter,'searchvalue':searchvalue,'star': star})
 							yield td(a(href=url,title='上一页',class_='pagesel')('<'),class_='pagesel')
 						else:
 							yield td(a(href='#',title='第一页',class_='pagesel')('|<'),class_='pagesel')
@@ -964,7 +964,7 @@ class MyHandler(BaseHTTPRequestHandler):
 							for page in range(1,pages+1):
 								offset=pageitem*(page-1)
 								url='/files?'+urllib.urlencode({'cid': cid,'offset':offset,
-								'cursorttype':cursorttype,'typefilter':typefilter,'searchvalue':searchvalue})
+								'cursorttype':cursorttype,'typefilter':typefilter,'searchvalue':searchvalue,'star': star})
 								#offlast=offset+pageitem
 								#if offlast>count:
 								#	offlast=count
@@ -977,10 +977,10 @@ class MyHandler(BaseHTTPRequestHandler):
 						yield td('共%03d页'%(pages),class_='pagesel')
 						
 						if curpage<pages:
-							url='/files?'+urllib.urlencode({'cid': cid,'offset':pageitem*(curpage),'cursorttype':cursorttype,'typefilter':typefilter,'searchvalue':searchvalue})
+							url='/files?'+urllib.urlencode({'cid': cid,'offset':pageitem*(curpage),'cursorttype':cursorttype,'typefilter':typefilter,'searchvalue':searchvalue,'star': star})
 							yield td(a(href=url,title='下一页',class_='pagesel')('>'),class_='pagesel'),
 							
-							url='/files?'+urllib.urlencode({'cid': cid,'offset':pageitem*(pages-1),'cursorttype':cursorttype,'typefilter':typefilter,'searchvalue':searchvalue})
+							url='/files?'+urllib.urlencode({'cid': cid,'offset':pageitem*(pages-1),'cursorttype':cursorttype,'typefilter':typefilter,'searchvalue':searchvalue,'star': star})
 							yield td(a(href=url,title='最后一页',class_='pagesel')('>|'),class_='pagesel')
 						else:
 							yield td(a(href='#',title='下一页',class_='pagesel')('>'),class_='pagesel')
