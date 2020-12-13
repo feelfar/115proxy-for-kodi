@@ -10,7 +10,4 @@ Desktop.ini
 *.egg-info
 dist
 build
-.vs/slnx.sqlite
-.vs/service.file115proxy/v16/.suo
-.vs/ProjectSettings.json
-.vs/VSWorkspaceState.json
+/.vs
