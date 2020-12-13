@@ -1,0 +1,130 @@
+body {
+  background-color: #CCCCFF;
+  font-size:2vw;
+}
+ul,table {
+    list-style-type: none;
+    margin: 0;
+    padding: 0;
+    width:100%;
+}
+ 
+li a {
+    display: block;
+    color: #000;
+    padding: 8px 16px;
+	overflow:hidden; 
+    text-decoration: none;
+	text-overflow:ellipsis;
+	white-space:nowrap; 
+}
+
+/* 鼠标移动到选项上修改背景颜色 */
+li a:hover {
+    background-color: #666633;
+    color: white;
+}
+
+
+td a {
+    display: block;
+    color: #000;
+    padding: 8px 16px;
+    text-decoration: none;
+	background-color: ##99CC66;
+	font-size:1.8vw
+}
+
+
+/* 鼠标移动到选项上修改背景颜色 */
+td a:hover {
+    background-color: #555;
+    color: white;
+}
+
+.path,.typefilter{
+	color: #ffffff;
+	background-color: #669966;
+	font-size:1.5vw;
+}
+
+.curpath{
+	color: #000;
+	background-color: #CCFFCC;
+	font-size:1.5vw;
+	word-wrap: break-word;
+    white-space: normal;
+    word-break:break-all; 
+}
+
+.sort{
+	color: #000;
+	background-color: #99ffcc;
+}
+
+.pagesel{
+	color: #000;
+	background-color: #CCFFCC;
+	font-size:1.5vw;
+}
+
+.loctd{
+	max-width: 5%; 
+	width: 5%;
+}
+
+.loc{
+	color: #000;
+	background-color: #FFCC99;
+	padding: 8px 8px;
+	font-size:1.5vw;
+
+}
+
+.videotd{
+	max-width: 45%; 
+	width: 45%;
+}
+
+.video{
+	color: #000;
+	background-color: #FFCCCC;
+	word-wrap: break-word;
+    white-space: normal;
+    word-break:break-all; 
+}
+
+.vid2{
+	color: #000;
+	background-color: #FFCC99;
+}
+
+.bigfont {
+  font-size:2.5vw;
+  width:100%;
+}
+
+.video-container {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 95%;
+  height: 95%; 
+  overflow: hidden;
+}
+.video-container video {
+  /* Make video to at least 100% wide and tall */
+  min-width: 95%; 
+  min-height: 95%; 
+
+  /* Setting width & height to auto prevents the browser from stretching or squishing the video */
+  width: auto;
+  height: auto;
+
+  /* Center the video 
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%,-50%);
+  */
+}
