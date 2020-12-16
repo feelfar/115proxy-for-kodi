@@ -1267,12 +1267,14 @@ class MyHandler(BaseHTTPRequestHandler):
 				#opener.addheader(key,s.headers[key])
 				request.add_header(key, s.headers[key])
 				#xbmc.log(msg='zzzdebug:XBMCLocalProxy: reqheaders %s:%s'%(key, s.headers[key]))
-		request.add_header('User-Agent','Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.109 Safari/537.36')
+		#request.add_header('User-Agent','Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.109 Safari/537.36')
+		request.add_header('User-Agent','Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 6.2; Trident/6.0)')
+		request.add_header('Referer', 'https://115.com/?cid=0&offset=0&mode=wangpan')
 		#request.add_header('Connection','Keep-Alive')
 		#request.add_header('Accept-encoding','identity')
 		#request.add_header('accept','*/*')
-		#request.add_header('Cookie',cookiestr+downcookie+';')
-		request.add_header('Cookie',downcookie+';')
+		request.add_header('Cookie',cookiestr+downcookie+';')
+		#request.add_header('Cookie',downcookie+';')
 		
 		#request.add_header('Connection','close')
 		if sendData==0:
