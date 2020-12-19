@@ -32,7 +32,7 @@ import gzip
 import json
 import xbmc,xbmcaddon
 import StringIO
-import threading
+from threading import Semaphore
 import os
 import mimetypes
 import cookielib
@@ -90,7 +90,8 @@ class api_115(object):
 		if cookstr=='0':
 			cookstr=_cookiestr
 		self.headers = {
-			'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.109 Safari/537.36',
+			#'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.109 Safari/537.36',
+			'User-Agent': 'Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 6.2; Trident/6.0)',
 			'Accept-encoding': 'gzip,deflate',
 			'Cookie': cookstr,
 		}
@@ -502,6 +503,16 @@ wlHF+mkTJpKd5Wacef0vV+xumqNorvLpIXWKwxNaoHM=
 			return ''
 
 class MyHandler(BaseHTTPRequestHandler):
+	#文件块读取大小
+	blockSize=1024*1024*16
+	#每文件最大访问线程数
+	accessThreadNum=2
+	#文件下载地址
+	fidDownloadurl={}
+	#文件下载线程计数器
+	fidSemaphores={}
+	#文件大小
+	fileSize={}
 	def handle(self):
 		try:
 			BaseHTTPRequestHandler.handle(self)
@@ -637,7 +648,7 @@ class MyHandler(BaseHTTPRequestHandler):
 					name=qs.get('title',['0'])[0]
 					mimetype=qs.get('mimetype',['0'])[0]
 					s.send_response(200)
-					s.end_headers()
+					
 					playhtml='''
 <!DOCTYPE html>
 <html lang='en'>
@@ -657,6 +668,8 @@ class MyHandler(BaseHTTPRequestHandler):
 </body>
 </html>
 					'''%(name,url)
+					s.send_header('Content-Length', len(playhtml))
+					s.end_headers()
 					s.wfile.write(playhtml)
 				except Exception as errno:
 					xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
@@ -715,7 +728,7 @@ class MyHandler(BaseHTTPRequestHandler):
 					name=qs.get('title',['0'])[0]
 					mimetype=qs.get('mimetype',['0'])[0]
 					s.send_response(200)
-					s.end_headers()
+					
 					playhtml='''
 <!DOCTYPE html>
 <html lang='en'>
@@ -735,6 +748,8 @@ class MyHandler(BaseHTTPRequestHandler):
 </body>
 </html>
 					'''%(name,url)
+					s.send_header('Content-Length', len(playhtml))
+					s.end_headers()
 					s.wfile.write(playhtml)
 				except Exception as errno:
 					xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
@@ -742,23 +757,25 @@ class MyHandler(BaseHTTPRequestHandler):
 			elif request_path[0:4]=='/115':
 				(fid,cookiestr,changeserver,name)=request_path[5:].split('/')
 				cookiestr=urllib.unquote_plus(cookiestr)
-				res=s.serveFile(fid, cookiestr, changeserver, sendData,name)
 				if fid=='cleartempplay':
-					if res[0:5]=='clear':
-						s.send_response(200)
-						s.end_headers()
-						t = html(
-							head(
-								meta(charset='utf-8'),
-								title('WEB115 CLEARTEMPLAY'),
-								link(rel='stylesheet',href='/css/styles.css')
-							),
-							body(
-								res
-							)
+					s.send_response(200)
+					t = html(
+						head(
+							meta(charset='utf-8'),
+							title('WEB115 CLEARTEMPLAY'),
+							link(rel='stylesheet',href='/css/styles.css')
+						),
+						body(
+							res
 						)
-						s.wfile.write( t.render())
-						
+					)
+					htmlrender=t.render()
+					s.send_header('Content-Length', len(htmlrender))
+					s.end_headers()
+					s.wfile.write(htmlrender)
+				else:
+					res=s.serveFile(fid, cookiestr, changeserver, sendData,name)
+				
 			elif request_path[0:4]=='/m3u':
 				try:
 					(pc,sha,name)=request_path[5:].split('/')
@@ -787,6 +804,7 @@ class MyHandler(BaseHTTPRequestHandler):
 						#s.wfile.write(datam)
 						s.send_response(200)
 						s.send_header('Content-type', 'application/x-mpegURL')
+						s.send_header('Content-Length', len(extm3u))
 						s.end_headers()
 						s.wfile.write(extm3u)
 					else:
@@ -795,7 +813,6 @@ class MyHandler(BaseHTTPRequestHandler):
 						data=xl.urlopen('http://115.com/?ct=play&ac=push',data=data)
 						s.send_response(200)
 						s.send_header('Content-Type', 'text/html; charset=UTF-8')
-						s.end_headers()
 						t = html(
 							head(
 								title('未转码'),
@@ -803,7 +820,10 @@ class MyHandler(BaseHTTPRequestHandler):
 							),
 							body('当前文件未转码，请尝试原码播放')
 							)
-						s.wfile.write( t.render())
+						htmlrender=t.render()
+						s.send_header('Content-Length', len(htmlrender))
+						s.end_headers()
+						s.wfile.write(htmlrender)
 				except Exception as errno:
 					xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
 					
@@ -830,8 +850,6 @@ class MyHandler(BaseHTTPRequestHandler):
 						defaultsub=''
 					s.send_response(200)
 					s.send_header('Content-Type', 'text/html; charset=UTF-8')
-					s.end_headers()
-					
 					playhtml='''
 <head>
   <link href="https://vjs.zencdn.net/7.6.5/video-js.css" rel="stylesheet">
@@ -869,6 +887,8 @@ class MyHandler(BaseHTTPRequestHandler):
 						# )
 					# )
 					# s.wfile.write(t.render())
+					s.send_header('Content-Length', len(playhtml))
+					s.end_headers()
 					s.wfile.write(playhtml)
 				except Exception as errno:
 					xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
@@ -1071,7 +1091,7 @@ class MyHandler(BaseHTTPRequestHandler):
 								yield tr(tds)
 					s.send_response(200)
 					s.send_header('Content-Type', 'text/html; charset=UTF-8')
-					s.end_headers()
+					
 					t = html(
 						head(
 							title('web115 files'),
@@ -1093,10 +1113,12 @@ class MyHandler(BaseHTTPRequestHandler):
 							table(items),
 						)
 					)
-					s.wfile.write(t.render())
+					htmlrender=t.render()
+					s.send_header('Content-Length', len(htmlrender))
+					s.end_headers()
+					s.wfile.write(htmlrender)
 				else:
 					s.send_response(200)
-					s.end_headers()
 					t = html(
 						head(
 							meta(charset='utf-8'),
@@ -1111,7 +1133,10 @@ class MyHandler(BaseHTTPRequestHandler):
 								'并重新启动KODI',
 						)
 					)
-					s.wfile.write( t.render())
+					htmlrender=t.render()
+					s.send_header('Content-Length', len(htmlrender))
+					s.end_headers()
+					s.wfile.write(htmlrender)
 					
 			elif request_path[0:4]=='/sub':
 				try:
@@ -1131,19 +1156,20 @@ class MyHandler(BaseHTTPRequestHandler):
 					xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
 			else:
 				try:
-					if request_path=='/':
+					if request_path=='/' or request_path=='':
 						request_path='/index.html'
-					filepath = xbmc.translatePath( os.path.join( __cwd__,  'www', request_path[1:] ))
-					xbmc.log(msg=filepath,level=xbmc.LOGERROR)
+					filepath = xbmc.translatePath( os.path.join( __cwd__,  'www', request_path[1:]))
+					#filesize=os.path.getsize(filepath)
+					#xbmc.log(msg=filepath,level=xbmc.LOGERROR)
 					f = open(filepath)
 
 				except IOError:
 					s.send_error(404,'File Not Found: %s ' % request_path)
-
 				else:
 					s.send_response(200)
 					mimetype, _ = mimetypes.guess_type(filepath)
 					s.send_header('Content-type', mimetype)
+					#s.send_header('Content-Length', filesize)
 					s.end_headers()
 					shutil.copyfileobj(f,s.wfile)
 		except:
@@ -1156,221 +1182,191 @@ class MyHandler(BaseHTTPRequestHandler):
 			#xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
 			pass
 
-	def getfilecopypc(s, fid, cookiestr, sendData):
-		global fid_pclist
-		global fid_downloadurls
-		global lock
+	def getfidUrl(s, fid, cookiestr):
 		xl = api_115(cookiestr)
-		if fid=='cleartempplay':
-			clearok='clear tempplay 失败'
-			while True:
-				data=xl.getfilelist(cid=0,offset=0,pageitem=100,star=0,sorttype=0,sortasc=0,typefilter=0,nf='0',search_value='')
-				fids=[]
-				if data['state']:
-					for item in data['data']:
-						if re.match('tempplay_[0-9a-f]{32}', item['n'], re.IGNORECASE | re.DOTALL) and item.has_key('cid'):
-							#xbmc.log(msg='cleartempplay'+ item['n'])
-							if item['cid']!='':
-								fids.append(item['cid'])
-					if len(fids)<=0:
-						clearok='clear tempplay OK'
-						break
-					xl.delete(fids)
-					lock.acquire()
-					fid_pclist.clear()
-					fid_downloadurls.clear()
-					lock.release()
-					clearok='clear tempplay OK'
-				else:
-					break
-			return clearok
 		filecopypc=''
 		cid=''
 		try:
-			if fid_pclist.has_key(fid):
-				lock.acquire()
-				if len(fid_pclist[fid])>=1:
-					filecopypc= fid_pclist[fid][0]
-					if filecopypc:
-						del fid_pclist[fid][0]
-					lock.release()
-				else:
-					lock.release()
-					#if sendData:
-					
-					cid=xl.createdir(0,'tempplay_'+uuid.uuid4().hex)
-					xl.copy(fid,cid)
-					while True:
-						data=xl.getfilelist(cid=cid,offset=0,pageitem=100,star=0,sorttype=0,sortasc=0,typefilter=0,nf='0',search_value='')
-						if data['state']:
-							if len(data['data'])>0:
-								#n=data['data'][0]['n']
-								#ext=n[n.rfind('.'):]
-								
-								fid2=data['data'][0]['fid']
-								ico=data['data'][0]['ico']
-								newn=uuid.uuid4().hex
-								if ico:
-									newn=newn+'.'+ico
-								#xl.rename(fid2,uuid.uuid4().hex+ext)
-								xl.rename(fid2,newn)
-								filecopypc = xl.getpc(fid2)
-								if filecopypc:
-									xl.delete([cid,])
-									break
-			else:
-				fid_pclist[fid]=[]
-				filecopypc = xl.getpc(fid)
-			#xbmc.log(msg='fid:%s,pc:%s'%(fid,filecopypc),level=xbmc.LOGERROR)
-			return filecopypc
+			fidUrl=''
+			if s.fidDownloadurl.has_key(fid):
+				(strtime,fidUrl)=s.fidDownloadurl[fid].split(' ')
+				timespan=long(time.time())-long(strtime)
+				if timespan>=18000:
+					fidUrl=''
+			if fidUrl=='':
+				fpc=xl.getpc(fid)
+				fidUrl=xl.getfiledownloadurl(fpc)
+				s.fidDownloadurl[fid]=str(long(time.time()))+' '+fidUrl
+			return fidUrl
 		except Exception as errno:
-			#if cid!='': xl.delete(cid)
 			errorstr=' '.join(('error:', str(errno)))
 			xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
 			return errorstr
 
+
+	def urlopenwithRetry(s,request):
+		for _ in range(10):
+			try:
+				opener2 = urllib2.build_opener(SmartRedirectHandler)
+				response= opener2.open(request,timeout=40)
+				return response
+				break
+			except:
+				time.sleep(1)
+				pass
 	'''
 	Sends the requested file and add additional headers.
 	'''
 	def serveFile(s, fid, cookiestr, changeserver, sendData,name):
-		global fid_pclist
-		global lock
-		filecopypc = s.getfilecopypc(fid, cookiestr, sendData)
-		if fid=='cleartempplay':
-			return filecopypc
-		if not filecopypc:
+		fidUrl = s.getfidUrl( fid, cookiestr)
+		if not fidUrl:
 			s.send_response(403)
 			return
-		filedownloadurl=''
-		if fid_downloadurls.has_key(filecopypc):
-			(strtime,filedownloadurl)=fid_downloadurls[filecopypc].split(' ')
-			timespan=long(time.time())-long(strtime)
-			#xbmc.log(msg='timespan:'+str(timespan),level=xbmc.LOGERROR)
-			if timespan>=3600:
-				del fid_downloadurls[filecopypc]
-				filedownloadurl=''
-		if filedownloadurl=='':
-			xl = api_115(cookiestr)
-			filedownloadurl=xl.getfiledownloadurl(filecopypc)
-			fid_downloadurls[filecopypc]=str(long(time.time()))+' '+filedownloadurl
-		if changeserver!='' and changeserver!='0' :
-			filedownloadurl = re.sub('(http://)(.*115.com)(.*)', r'\1'+changeserver+r'\3', filedownloadurl)
-		#xbmc.log(msg='filedownloadurl---'+filedownloadurl)
-		filedownloadurl,downcookie=filedownloadurl.split('|')
-		request = urllib2.Request(filedownloadurl)
-		#opener = urllib.FancyURLopener()
-		
+		filedownloadurl,downcookie=fidUrl.split('|')
+		if not s.fileSize.has_key(fid):
+			s.fileSize[fid]=-1
+		if not s.fidSemaphores.has_key(fid):
+			s.fidSemaphores[fid]=Semaphore(s.accessThreadNum)
+
+		rangeBegin=0
+		#处理转发请求headers---begin
+		reqheaders={}
 		for key in s.headers:
 			#xbmc.log(msg='zzzdebug:XBMCLocalProxy: reqheaders %s:%s'%(key, s.headers[key]))
 			if key.lower()!='host' and key.lower()!='user-agent':
-			#if key.lower()=='range':
 				#opener.addheader(key,s.headers[key])
-				request.add_header(key, s.headers[key])
-				#xbmc.log(msg='zzzdebug:XBMCLocalProxy: reqheaders %s:%s'%(key, s.headers[key]))
-		#request.add_header('User-Agent','Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.109 Safari/537.36')
-		request.add_header('User-Agent','Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 6.2; Trident/6.0)')
-		request.add_header('Referer', 'https://115.com/?cid=0&offset=0&mode=wangpan')
-		#request.add_header('Connection','Keep-Alive')
-		#request.add_header('Accept-encoding','identity')
-		#request.add_header('accept','*/*')
-		request.add_header('Cookie',cookiestr+downcookie+';')
-		#request.add_header('Cookie',downcookie+';')
-		
-		#request.add_header('Connection','close')
+				#request.add_header(key, s.headers[key])
+				reqheaders[key]=s.headers[key]
+			if key.lower()=='range':
+				strRange=s.headers[key]
+				rangeBegin=int(strRange[strRange.index('=')+1:strRange.index('-')])
+		#request.add_header('User-Agent','Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 6.2; Trident/6.0)')
+		#request.add_header('Referer', 'https://115.com/?cid=0&offset=0&mode=wangpan')
+		#request.add_header('Cookie',cookiestr+downcookie+';')
+		reqheaders['User-Agent']='Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 6.2; Trident/6.0)'
+		reqheaders['Referer']='https://115.com/?cid=0&offset=0&mode=wangpan'
+		reqheaders['Cookie']=cookiestr+downcookie+';'
+		#处理转发请求headers---end
+		#转发请求
+		request = urllib2.Request(filedownloadurl, headers=reqheaders)
 		if sendData==0:
 			request.get_method = lambda : 'HEAD'
-		#xbmc.log(msg='zzzdebug:XBMCLocalProxy:  headers...',level=xbmc.LOGERROR)
-		
 		response=None
+		#线程加塞
+		s.fidSemaphores[fid].acquire()
+		xbmc.log('lockcount+1 sendData=%d bytes=%d-'%(sendData,rangeBegin),level=xbmc.LOGERROR)
+		err=False
+		
+		wcode=200
+		wheaders={}
+		#wheaders={'Connection':'Keep-Alive','Keep-Alive':'timeout=20, max=100'}
 		try:
-			opener2 = urllib2.build_opener(SmartRedirectHandler)
-			response = opener2.open(request,timeout=40)
+			
+			response = s.urlopenwithRetry(request)
+			
+			#s.protocal_version ='HTTP/1.1'
+			wcode=response.code
+			headers=response.info()
+			#xbmc.log(msg=str(headers),level=xbmc.LOGERROR)
+			keys=['content-length','content-range','accept-ranges','date']
+			for key in headers:
+				try:
+					if key=='content-length' and s.fileSize[fid]==-1:
+						#文件大小
+						s.fileSize[fid]= int(headers[key])
+					if key.lower() in keys:
+						#xbmc.log(msg='zzzdebug:'+key+':'+headers[key],level=xbmc.LOGERROR)
+						wheaders[key]=headers[key]
+				except Exception as errno:
+					xbmc.log(msg='zzzdebug:sendheaderERR:%s'%(errno),level=xbmc.LOGERROR)
+					pass
+			
+			mimetype, _ =mimetypes.guess_type(name.lower())
+			if not mimetype:
+				mimetype='application/octet-stream'
+			xbmc.log(msg='zzzdebug:mimetype:%s'%(mimetype),level=xbmc.LOGERROR)
+			wheaders['content-type']=mimetype
+			
+			
 		except:
+			xbmc.log('lockcount-1 HEAD error',level=xbmc.LOGERROR)
 			xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
 			s.send_response(404)
-			return
-		#realsock = response.fp._sock.fp._sock
-		#response = opener.open(filedownloadurl)
-		#xbmc.log('zzzdebug:XBMCLocalProxy:responseCode:%s' % (response.code))
-		s.protocal_version ='HTTP/1.1'
-		try:
-			s.send_response(response.code)
-		except:
-			#xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
-			return
-		#xbmc.log(msg='zzzdebug:XBMCLocalProxy: Sending headers...',level=xbmc.LOGERROR)
-		
-		headers=response.info()
-		
-		keys=['content-length','content-range','accept-ranges']
-		
-		for key in headers:
+			err=True
+		finally:
+			response.close()
+			#time.sleep(1)
+			s.fidSemaphores[fid].release()
+			xbmc.log('lockcount-1 HEAD over err=%s'%str(err),level=xbmc.LOGERROR)
+			if sendData==0:
+				s.send_response(wcode)
+				for key in wheaders:
+					s.send_header(key,wheaders[key])
+				s.end_headers()
+			if err or sendData==0:
+				return
+
+		xbmc.log('rangeBegin=%d,s.fileSize[fid]=%d'%(rangeBegin,s.fileSize[fid]),level=xbmc.LOGERROR)
+		sendheadover=False
+		while rangeBegin<s.fileSize[fid]:
+			#改变获取范围的结束位置
+			rangeEnd=rangeBegin+s.blockSize-1
+			if rangeEnd>=s.fileSize[fid]:
+				rangeEnd=s.fileSize[fid]-1
+			reqheaders['Range']='bytes=%d-%d'%(rangeBegin,rangeEnd)
+			request = urllib2.Request(filedownloadurl, headers=reqheaders)
+			#线程加塞
+			s.fidSemaphores[fid].acquire()
+			xbmc.log('lockcount+1 bytes=%d-%d'%(rangeBegin,rangeEnd),level=xbmc.LOGERROR)
+			err=False
 			try:
-				if key.lower() in keys:
-					s.send_header(key, headers[key])
-				#xbmc.log(msg='zzzdebug:'+key+':'+headers[key])
-			except Exception as errno:
-				xbmc.log(msg='zzzdebug:sendheaderERR:%s'%(errno),level=xbmc.LOGERROR)
-				pass
-		
-		mimetype, _ =mimetypes.guess_type(name.lower())
-		if not mimetype:
-			mimetype='application/octet-stream'
-		#xbmc.log(msg='zzzdebug:mimetype:%s'%(mimetype),level=xbmc.LOGERROR)
-		s.send_header('content-type', mimetype)
-		
-		s.end_headers()
-		'''
-		if sendData==1:
-			fileout=s.wfile
-			xbmc.log(msg='zzzdebug:XBMCLocalProxy: Sending data...')
-			#
-			readcount1=16384
-			readcount2=2048
-			
-			st=0
-			try:
-				
+				response = s.urlopenwithRetry(request)
+				if not sendheadover:
+					s.send_response(wcode)
+					for key in wheaders:
+						s.send_header(key,wheaders[key])
+					s.end_headers()
+					sendheadover=True
+				fileout=s.wfile
+				shutil.copyfileobj(response,fileout)
+				'''
+				readcount1=16384
+				readcount2=2048
+
+				st=0
+
 				buf="INIT"
 				while (buf!=None and len(buf)>0):
-					
 					buf=response.read(readcount1)
-					
-					
 					st=0
 					#xbmc.log(msg='zzzdebug:XBMCLocalProxy: write..%s'%(len(buf)),level=xbmc.LOGERROR)
 					while (st<(len(buf)-readcount2)):
 						fileout.write(buf[st:st+readcount2])
 						st+=readcount2
 					fileout.write(buf[st:len(buf)])
-					
-					#fileout.flush()
-					
-			except Exception as errno:
-				xbmc.log(msg='zzzdebug:sendDataERR:%s count:%s,%s,%s,%s,%s'%(errno,countrec0,countrec1,countrec2,st,countrec3),level=xbmc.LOGERROR)
-				pass
-		'''
-		if sendData==1:
-			fileout=s.wfile
-			#xbmc.log(msg='zzzdebug:XBMCLocalProxy: Sending data...')
-			try:
-				shutil.copyfileobj(response,fileout)
-			except Exception as errno:
-				pass
+				'''
+				rangeBegin+=s.blockSize
+			except:
+				xbmc.log('lockcount-1 getandsendData error bytes=%d-%d'%(rangeBegin,rangeEnd),level=xbmc.LOGERROR)
+				xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
+				
+				err=True
+				#s.send_response(404)
+			
+			finally:
+				response.close()
+				#time.sleep(1)
+				response=None
+				s.fidSemaphores[fid].release()
+				xbmc.log('lockcount-1 copyfileobj finally err=%s'%str(err),level=xbmc.LOGERROR)
+				if err:
+					break
+				#time.sleep(1)
+				#xbmc.log(msg='zzzdebug:XBMCLocalProxy:'+time.asctime()+' Closing connection')
 		try:
-			#xbmc.log(msg='zzzdebug:XBMCLocalProxy:'+time.asctime()+' Closing wfile')
 			s.wfile.close()
-		except Exception as errno:
-			#xbmc.log(msg='zzzdebug:closeERR:%s'%(errno),level=xbmc.LOGERROR)
+		except:
 			pass
-		finally:
-			#response.fp._sock.fp._sock.shutdown(socket.SHUT_RDWR)
-			response.close()
-			time.sleep(3)
-			#xbmc.log(msg='zzzdebug:XBMCLocalProxy:'+time.asctime()+' Closing connection')
-			lock.acquire()
-			fid_pclist[fid].append(filecopypc)
-			lock.release()
 
 
 class Server(HTTPServer):
@@ -1412,9 +1408,10 @@ if __name__ == '__main__':
 		exit()
 	fid_pclist={}
 	fid_downloadurls={}
-	lock=threading.Lock()
 	socket.setdefaulttimeout(40)
 	server_class = ThreadedHTTPServer
+	#MyHandler.protocol_version='HTTP/1.1'
+	MyHandler.protocol_version='HTTP/1.0'
 	httpd = server_class((HOST_NAME, PORT_NUMBER), MyHandler)
 	xbmc.log(msg='XBMCLocalProxy Starts - %s:%s' % (HOST_NAME, PORT_NUMBER),level=xbmc.LOGERROR)
 	while(not xbmc.abortRequested):
