@@ -191,17 +191,38 @@ class api_115(object):
 		except Exception as errno:
 			xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
 			return ''
-
+			
+	def gettaglist(self):
+		data=self.urlopen('https://webapi.115.com/label/list?user_id=&offset=0&limit=11500&sort=create_time&order=desc')
+		return json.loads(data[data.index('{'):])
+			
+	def settag(self,fid,tag):
+		data = urllib.urlencode({'fid': fid,'file_label':tag})
+		try:
+			data=self.urlopen('http://web.api.115.com/files/edit',data=data)
+			data= self.fetch(data).replace('\n','').replace('\r','')
+			data=json.loads(data[data.index('{'):])
+			return data['state']
+		except:
+			return False
+			
 	def getfilelist(self,cid,offset,pageitem,star,sorttype,sortasc,typefilter='0',nf='0',search_value=''):
 		try:
-			data=''
 			if search_value!='' and search_value!='0':
-				data=urllib.urlencode({'search_value': search_value,'cid':cid,'aid':'1','limit':str(pageitem),
-								'offset':str(offset),'o':sorttype,'asc':sortasc,'natsort':'1',
-								'format':'json','date':'','pick_code':'','type':typefilter,'source':''})
+				file_label=''
+				match=re.search(r'^tag\s*(?P<tag>[0-9]{10,})$',search_value)
+				if match:
+					file_label=match.group('tag')
+				if file_label:
+					data=urllib.urlencode({'file_label': file_label,'cid':cid,'aid':'1','limit':str(pageitem),
+								'o':sorttype,'asc':sortasc,'offset':str(offset),'format':'json','date':'','pick_code':'','type':typefilter,'source':''})
+				else:
+					data=urllib.urlencode({'search_value': search_value,'cid':cid,'aid':'1','limit':str(pageitem),
+								'o':sorttype,'asc':sortasc,'offset':str(offset),'format':'json','date':'','pick_code':'','type':typefilter,'source':''})
 				data=self.urlopen('http://web.api.115.com/files/search?'+data)
 			else:	
-				data = urllib.urlencode({'aid': '1','cid':cid,'limit':pageitem,'offset':offset,'type':typefilter,'star':star,'custom_order':'2','o':sorttype,'asc':sortasc,'natsort':'1','nf':nf,'show_dir':'1','format':'json','_':str(long(time.time()))})
+				data = urllib.urlencode({'aid': '1','cid':cid,'limit':pageitem,'offset':offset,'type':typefilter,'star':star,'custom_order':'2',
+									'o':sorttype,'asc':sortasc,'nf':nf,'show_dir':'1','format':'json','_':str(long(time.time()))})
 				if sorttype=='file_name':
 					data=self.urlopen('http://aps.115.com/natsort/files.php?'+data)
 				else:
@@ -209,6 +230,7 @@ class api_115(object):
 			return json.loads(data[data.index('{'):])
 		except:
 			xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
+	
 		
 	def getpc(self,fid):
 		try:
@@ -721,39 +743,6 @@ class MyHandler(BaseHTTPRequestHandler):
 				except Exception as errno:
 					xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
 					
-			elif request_path[0:4]=='/giz':
-				try:
-					qs=parse_qs(urlsp.query, keep_blank_values=True)
-					url=qs.get('url',['0'])[0]
-					name=qs.get('title',['0'])[0]
-					mimetype=qs.get('mimetype',['0'])[0]
-					s.send_response(200)
-					
-					playhtml='''
-<!DOCTYPE html>
-<html lang='en'>
-<head>
-	<meta charset='UTF-8'>
-	<link rel='stylesheet' type='text/css' href='https://s3.deovr.com/version/1/css/styles.css' />
-	<title>DEOVR</title>
-</head>
-<body>
-<div>
-<deo-video format='LR' angle='180' title='%s' >
-<source src='%s' quality='1920p'/>
-</deo-video>
-</div>
-<!-- Scripts -->
-<script async src='https://s3.deovr.com/version/1/js/bundle.js'></script>
-</body>
-</html>
-					'''%(name,url)
-					s.send_header('Content-Length', len(playhtml))
-					s.end_headers()
-					s.wfile.write(playhtml)
-				except Exception as errno:
-					xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
-
 			elif request_path[0:4]=='/115':
 				(fid,cookiestr,changeserver,name)=request_path[5:].split('/')
 				cookiestr=urllib.unquote_plus(cookiestr)
@@ -909,13 +898,30 @@ class MyHandler(BaseHTTPRequestHandler):
 				sortasc='0'
 				if cursorttype=='1' or cursorttype=='2' or cursorttype=='4':
 					sortasc='1'
+				xl = api_115('0')
+				taglist=[]
+				data=xl.gettaglist()
+				if data['state']:
+					fllist=sorted( data['data']['list'],key=lambda k:k['sort'],reverse=True)
+					for tag in fllist:
+						tagname=tag['name'].encode('UTF-8')
+						taglist.append([tagname,tag['id']])
+				tagnamelist=[q[0] for q in taglist]
+				tagidlist=[q[1] for q in taglist]
+				
 				searchvalue=qs.get('searchvalue',[''])[0]
 				if len(searchvalue)<3:searchvalue=''
-				xl = api_115('0')
+				searchstr=searchvalue
+				if searchvalue[0:2]=='t:':
+					searchstr=searchvalue[2:]
+					try:
+						searchstr=('tag'+tagidlist[tagnamelist.index(searchstr)]).encode('UTF-8')
+					except:
+						pass
 				pageitem= int(xbmcaddon.Addon().getSetting('pageitem'))
 				if pageitem<10: pageitem=10
 				if pageitem>200: pageitem=200
-				data=xl.getfilelist(cid=cid,offset=offset,pageitem=pageitem,star=star,sorttype=sorttype,sortasc=sortasc,typefilter=typefilter,nf='0',search_value=searchvalue)
+				data=xl.getfilelist(cid=cid,offset=offset,pageitem=pageitem,star=star,sorttype=sorttype,sortasc=sortasc,typefilter=typefilter,nf='0',search_value=searchstr)
 				if data['state']:
 					def sort(ctx):
 						for title, url in [
@@ -950,6 +956,9 @@ class MyHandler(BaseHTTPRequestHandler):
 						if data.has_key('folder'):
 							cidname=data['folder']['name']
 						if cidname!='':
+							def tagnameoptions(ctx):
+								for tagname in tagnamelist:
+									yield option(value='t:'+tagname)
 							url='/files?'+urllib.urlencode({'cid': cid,'offset':0,'cursorttype':cursorttype})
 							title='当前【%s】'%(cidname).encode('UTF-8')
 							yield form(action='/files',method='GET')(
@@ -957,8 +966,9 @@ class MyHandler(BaseHTTPRequestHandler):
 								input_( type='hidden', name="cursorttype",value=cursorttype),
 								table(tr(
 								td(a(href=url,class_='curpath',title=title)(title)),
-								td(input_(class_='bigfont', type='text', name="searchvalue",value=searchvalue)),
-								td(input_(class_='bigfont', type='submit', name="submit",value='搜索')))
+								td(input_(class_='bigfont', type='text', name="searchvalue", list='tagnames',value=searchvalue),datalist(id='tagnames')(tagnameoptions)),
+								td(input_(class_='bigfont', type='submit', name="submit",value='搜索')),
+								)
 								))
 					def navpage(ctx):
 						count=int(data['count'])
@@ -1076,16 +1086,16 @@ class MyHandler(BaseHTTPRequestHandler):
 															urllib.quote_plus(m3url),
 															urllib.quote_plus(title),
 															)).encode('latin-1')
-									gizurl=('gizmovr://type=video&url=%s' % (url)).encode('latin-1')
-									m3ugizurl=('gizmovr://type=video&url=%s' % (m3url)).encode('latin-1')
+									#gizurl=('gizmovr://type=video&url=%s' % (url)).encode('latin-1')
+									#m3ugizurl=('gizmovr://type=video&url=%s' % (m3url)).encode('latin-1')
 									#xbmc.log(msg='requestedWith:'+requestedWith,level=xbmc.LOGERROR)
 									tds.append( td(a(href=url,type=mimetype,class_='video')(title),class_='videotd'))
 									tds.append( td(a(href=playurl,class_='vid2')('原码HTML5播放')))
 									tds.append( td(a(href=m3uplayurl,class_='vid2')('转码HTML5播放')))
-									if requestedWith.lower().find('deovr')>=0:
-										tds.append( td(a(href=m3udeourl,class_='vid2')('DEO转码播放')))
-									else:
-										tds.append( td(a(href=m3url,type='application/x-mpegURL',class_='vid2')('转码直连播放')))
+									#if requestedWith.lower().find('deovr')>=0:
+									#tds.append( td(a(href=m3udeourl,class_='vid2')('DEO转码播放')))
+									#else:
+									tds.append( td(a(href=m3url,type='application/x-mpegURL',class_='vid2')('转码直连播放')))
 								else:
 									tds.append(td(a(href=url,type=mimetype)(title),colspan='4'))
 								yield tr(tds)

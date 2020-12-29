@@ -203,7 +203,7 @@ __all__ = 'Tag Block Safe Var SelfClosingTag html script style form'.split()
 tags = 'head body title div p h1 h2 h3 h4 h5 h6 u b i s a em strong span '\
        'font del_ ins ul ol li dd dt dl article section nav aside header '\
        'footer audio video deo_video object_ embed param fieldset legend button '\
-       'textarea label select option table thead tbody tr th td caption '\
+       'textarea label select datalist option table thead tbody tr th td caption '\
        'blockquote cite q abbr acronym address'
 
 self_closing_tags = 'meta link br hr input_ img'
