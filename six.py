@@ -924,7 +924,7 @@ def python_2_unicode_compatible(klass):
                              "to %s because it doesn't define __str__()." %
                              klass.__name__)
         klass.__unicode__ = klass.__str__
-        klass.__str__ = lambda self: self.__unicode__().encode('utf-8')
+        klass.__str__ = lambda self: self.__unicode__()
     return klass
 
 

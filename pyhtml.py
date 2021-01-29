@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 
 PyHTML
@@ -373,7 +374,7 @@ class Tag(six.with_metaclass(TagMeta, object)):  # type: ignore
 
     def _write_as_string(self, s, out, indent, escape=True):
         if isinstance(s, six.text_type) and not isinstance(out, six.StringIO):
-            s = s.encode('utf-8')
+            s = s
         elif s is None:
             s = ''
         elif not isinstance(s, six.string_types):
@@ -407,7 +408,7 @@ class Tag(six.with_metaclass(TagMeta, object)):  # type: ignore
 
             if isinstance(value, six.text_type) and not isinstance(
                     out, six.StringIO):
-                value = value.encode('utf-8')
+                value = value
 
             if not isinstance(value, six.string_types):
                 value = str(value)
