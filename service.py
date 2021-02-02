@@ -50,17 +50,39 @@ from Cryptodome.Hash import MD5
 from Cryptodome.Hash import SHA
 from Cryptodome.Cipher import PKCS1_OAEP, PKCS1_v1_5
 from Cryptodome.PublicKey import RSA
-from pyhtml import *
 
 __cwd__=os.path.dirname(__file__)
 __lib__  = xbmc.translatePath( os.path.join( __cwd__, 'lib' ) )
 sys.path.append (__lib__)
 
-cookiefile = xbmc.translatePath(os.path.join(xbmcaddon.Addon(id='plugin.video.115').getAddonInfo('path'), 'cookie.dat'))
+from pyhtml import *
+
+
 _cookiestr=''
 
+def encode_obj(in_obj):
+    def encode_list(in_list):
+        out_list = []
+        for el in in_list:
+            out_list.append(encode_obj(el))
+        return out_list
 
+    def encode_dict(in_dict):
+        out_dict = {}
+        for k, v in in_dict.items():
+            out_dict[k] = encode_obj(v)
+        return out_dict
 
+    if isinstance(in_obj, six.text_type):
+        return six.ensure_binary(in_obj)
+    elif isinstance(in_obj, list):
+        return encode_list(in_obj)
+    elif isinstance(in_obj, tuple):
+        return tuple(encode_list(in_obj))
+    elif isinstance(in_obj, dict):
+        return encode_dict(in_obj)
+    return in_obj
+    
 class SmartRedirectHandler(request.HTTPRedirectHandler):
     def http_error_301(self, req, fp, code, msg, headers):  
         result = request.HTTPRedirectHandler.http_error_301(
@@ -98,102 +120,8 @@ class api_115(object):
             'Accept-encoding': 'gzip,deflate',
             'Cookie': cookstr,
         }
-    '''
-    def htmlentitydecode(self,s):
-        # First convert alpha entities (such as &eacute;)
-        # (Inspired from http://mail.python.org/pipermail/python-list/2007-June/443813.html)
-        def entity2char(m):
-            entity = m.group(1)
-            if entity in htmlentitydefs.name2codepoint:
-                return unichr(htmlentitydefs.name2codepoint[entity])
-            return u' '  # Unknown entity: We replace with a space.
-        t = re.sub(u'&(%s);' % u'|'.join(htmlentitydefs.name2codepoint), entity2char, s)
-
-        # Then convert numerical entities (such as &#233;)
-        t = re.sub(u'&#(\d+);', lambda x: unichr(int(x.group(1))), t)
-
-        # Then convert hexa entities (such as &#x00E9;)
-        return re.sub(u'&#x(\w+);', lambda x: unichr(int(x.group(1),16)), t)
-    
-    def gethead(self, url, data=None,h=None,referer=None):
-        headers = self.headers
-        if h:
-            headers.update(h)
-        req = request.Request(url, headers = headers)
-        if referer:
-            req.add_header('Referer', referer)
-        req.get_method = lambda : 'HEAD'
-        opener = request.build_opener(PassRedirectHandler)
-        return opener.open(req,timeout=30)
-                
-    def get_response(self, url, data=None,h=None,referer=None,charset='auto'):
-        #Return the content of the url page as a string
-        headers = self.headers
-        if h:
-            headers.update(h)
-        req = request.Request(url, headers = headers)
-        if referer:
-            req.add_header('Referer', referer)
-        try:
-            if data:
-                response = request.urlopen(req,data=data,timeout=40) 
-            else:
-                response = request.urlopen(req,timeout=40)
-            return response
-        except Exception as errno:
-            xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
-            return None
             
-    def retrieve_url(self, url, data=None,h=None,referer=None,charset='auto'):
-        # Return the content of the url page as a string
-        response=self.get_response(url, data,h,referer,charset)
-        dat = response.read()
-        
-        # Check if it is gzipped
-        if dat[:2] == '\037\213':
-            # Data is gzip encoded, decode it
-            compressedstream = six.BytesIO(dat)
-            gzipper = gzip.GzipFile(fileobj=compressedstream)
-            extracted_data = gzipper.read()
-            dat = extracted_data
-        if 'Set-Cookie' in response.headers:
-            #xbmc.log(msg=response.headers['Set-Cookie'],level=xbmc.LOGERROR)
-            
-            downcookies = re.findall(r'(?:[0-9abcdef]{20,}|acw_tc)\s*\x3D\s*[0-9abcdef]{20,}', response.headers['Set-Cookie'], re.DOTALL | re.MULTILINE)
-            self.downcookie=''
-            for downcook in downcookies:
-                self.downcookie+=downcook+';'
-                
-                
-            #downcook=downcook[downcook.find(',')+2:]
-            #self.downcookie=downcook[:downcook.find(';')]
-            #xbmc.log(msg='zzzdebug:DownCookie:'+self.downcookie,level=xbmc.LOGERROR)
-            #self.downcookie=''
-            #for downcook in downcookies:
-            #	self.downcookie+=downcook[:downcook.find(';')]+';'
-        info = response.info()
-        
-        if charset=='auto':
-            charset = 'utf-8'
-            try:
-                ignore, charset = info['Content-Type'].split('charset=')
-            except Exception as errno:
-                xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
-                pass
-        dat = dat.decode(charset, 'replace')
-        dat = self.htmlentitydecode(dat)
-        return dat.encode('utf-8')
-    
-    def urlopen(self, url, data=''): 
-        try:
-            rs = self.retrieve_url(url,data=data)
-            return rs
-        except Exception as errno:
-            xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
-            return ''
-    '''
-            
-    def urlopen(self,url, data=None,referer=None):
+    def urlopen(self,url, data=None,referer=None,binary=False):
         #url=url
         reponse=''
         for i in range(1,5):
@@ -213,7 +141,8 @@ class api_115(object):
                     reponse = gzip.GzipFile(fileobj=six.BytesIO(rsp.read())).read()
                 else:
                     reponse = rsp.read()
-                reponse=six.ensure_text(reponse)
+                if not binary:
+                    reponse=six.ensure_text(reponse)
                 if 'Set-Cookie' in rsp.headers:
                     downcookies = re.findall(r'(?:[0-9abcdef]{20,}|acw_tc)\s*\x3D\s*[0-9abcdef]{20,}', rsp.headers['Set-Cookie'], re.DOTALL | re.MULTILINE)
                     self.downcookie=''
@@ -262,7 +191,7 @@ class api_115(object):
                     data=parse.urlencode({'search_value': search_value,'cid':cid,'aid':'1','limit':str(pageitem),
                                 'o':sorttype,'asc':sortasc,'offset':str(offset),'format':'json','date':'','pick_code':'','type':typefilter,'source':''})
                 data=self.urlopen('http://web.api.115.com/files/search?'+data)
-            else:	
+            else:
                 data = parse.urlencode({'aid': '1','cid':cid,'limit':pageitem,'offset':offset,'type':typefilter,'star':star,'custom_order':'2',
                                     'o':sorttype,'asc':sortasc,'nf':nf,'show_dir':'1','format':'json','_':str(int(time.time()))})
                 if sorttype=='file_name':
@@ -336,7 +265,94 @@ class api_115(object):
         except Exception as errno:
             xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
             return ''
+            
+    def notecatelist(self):
+        data=self.urlopen('https://note.115.com/?ct=note&ac=cate&has_picknews=1')
+        return self.jsonload(data)
+        
+    def noteaddcate(self,cname):
+        data = parse.urlencode(encode_obj({'cname': cname,'up_key':'tn__%d_0'%(int(time.time()))}))
+        data=self.urlopen('https://note.115.com/?ct=note&ac=addcate',data=data)
+        return self.jsonload(data)
 
+    def notegetcateid(self,cname):
+        cid=0
+        data=self.notecatelist()
+        if data['state']:
+            for cate in data['data']:
+                if cate['cname']==cname:
+                    cid=int(cate['cid'])
+                    break
+        if cid==0:
+            data = self.noteaddcate(cname)
+            if data['state']:
+                cid=int(data['data']['cid'])
+        return cid
+    
+    def notesave(self,cid,nid,title,content):
+        data = parse.urlencode(encode_obj({'cid': cid,'nid':nid,'subject':title,'content':content,'is_html':0,'toc_ids':''}))
+        data = self.urlopen('https://note.115.com/?ct=note&ac=save',data=data)
+        return self.jsonload(data)
+        
+    def notelist(self,cid,start):
+        data = parse.urlencode(encode_obj({'ct':'note','page_size':90,'has_picknews':1,'cid': cid,'keyword':'','start':start,'_':int(time.time())}))
+        data = self.urlopen('https://note.115.com/?'+data)
+        return self.jsonload(data)
+    
+    def notedelete(self,nid):
+        data = parse.urlencode(encode_obj({'nid': id}))
+        data = self.urlopen('https://note.115.com/?ct=note&ac=delete',data=data)
+        return self.jsonload(data)
+        
+    def notedetail(self,nid):
+        data = parse.urlencode(encode_obj({'ct': 'note','nid':nid,'ac':'detail'}))
+        data = self.urlopen('https://note.115.com/?'+data)
+        return self.jsonload(data)
+            
+    def notegetcontent(self,cname,notetitle):
+        content=''
+        cid=self.notegetcateid(cname)
+        data=self.notelist(cid=cid,start=0)
+        nid=0
+        if data['state']:
+            for note in data['data']:
+                if note['title']==notetitle:
+                    nid=int(note['nid'])
+                    break
+        if nid:
+            data = self.notedetail(nid)
+            if data['state']:
+                content=data['data']['content']
+        return content
+            
+    def notesavecontent(self,cname,notetitle,content):
+        state=False
+        cid=self.notegetcateid(cname)
+        data=self.notelist(cid=cid,start=0)
+        nid=0
+        if data['state']:
+            for note in data['data']:
+                if note['title']==notetitle:
+                    nid=int(note['nid'])
+                    break
+        
+        data = self.notesave(cid=cid,nid=nid,title=notetitle,content=content)
+        state = data['state']
+        return state
+                    
+    def notedeleteolds(self,cname):
+        state=False
+        cid=self.notegetcateid(cname)
+        data=self.notelist(cid=cid,start=90)
+        nids=''
+        if data['state']:
+            for note in data['data']:
+                nids=nids+note['nid']+','
+        if nids:
+            data = self.notedelete(nid=nids)
+            state = data['state']
+        return state
+        
     g_kts = [0xF0, 0xE5, 0x69, 0xAE, 0xBF, 0xDC, 0xBF, 0x5A, 0x1A, 0x45, 0xE8, 0xBE, 0x7D, 0xA6, 0x73, 0x88, 0xDE, 0x8F, 0xE7, 0xC4, 0x45, 0xDA, 0x86, 0x94, 0x9B, 0x69, 0x92, 0x0B, 0x6A, 0xB8, 0xF1, 0x7A, 0x38, 0x06, 0x3C, 0x95, 0x26, 0x6D, 0x2C, 0x56, 0x00, 0x70, 0x56, 0x9C, 0x36, 0x38, 0x62, 0x76, 0x2F, 0x9B, 0x5F, 0x0F, 0xF2, 0xFE, 0xFD, 0x2D, 0x70, 0x9C, 0x86, 0x44, 0x8F, 0x3D, 0x14, 0x27, 0x71, 0x93, 0x8A, 0xE4, 0x0E, 0xC1, 0x48, 0xAE, 0xDC, 0x34, 0x7F, 0xCF, 0xFE, 0xB2, 0x7F, 0xF6, 0x55, 0x9A, 0x46, 0xC8, 0xEB, 0x37, 0x77, 0xA4, 0xE0, 0x6B, 0x72, 0x93, 0x7E, 0x51, 0xCB, 0xF1, 0x37, 0xEF, 0xAD, 0x2A, 0xDE, 0xEE, 0xF9, 0xC9, 0x39, 0x6B, 0x32, 0xA1, 0xBA, 0x35, 0xB1, 0xB8, 0xBE, 0xDA, 0x78, 0x73, 0xF8, 0x20, 0xD5, 0x27, 0x04, 0x5A, 0x6F, 0xFD, 0x5E, 0x72, 0x39, 0xCF, 0x3B, 0x9C, 0x2B, 0x57, 0x5C, 0xF9, 0x7C, 0x4B, 0x7B, 0xD2, 0x12, 0x66, 0xCC, 0x77, 0x09, 0xA6]
     g_key_s = [0x29, 0x23, 0x21, 0x5E]
     g_key_l = [0x42, 0xDA, 0x13, 0xBA, 0x78, 0x76, 0x8D, 0x37, 0xE8, 0xEE, 0x04, 0x91]
@@ -450,14 +466,14 @@ wlHF+mkTJpKd5Wacef0vV+xumqNorvLpIXWKwxNaoHM=
             #message=self.scipher.decrypt(rettemp,sentinel)
             #digest = SHA.new(message[:-dsize]).digest()
             #if digest==message[-dsize:]:                # Note how we DO NOT look for the sentinel
-            #	plugin.log.error("Encryption was correct.")
+            #    plugin.log.error("Encryption was correct.")
             #else:
-            #	plugin.log.error("Encryption was not correct.")
+            #    plugin.log.error("Encryption was not correct.")
             ret.extend(message)
         #ssss=0
         #for ss in ret:
-        #	plugin.log.error('%d:%d'%(ssss,ord(ss)))
-        #	ssss+=1
+        #    plugin.log.error('%d:%d'%(ssss,ord(ss)))
+        #    ssss+=1
         return ret
         
     def m115_encode(self,src, tm):
@@ -499,24 +515,33 @@ wlHF+mkTJpKd5Wacef0vV+xumqNorvLpIXWKwxNaoHM=
         return self.m115_sym_decode(bsrc2, len(tmp) - 16, bkey1,bkey2)
 
     def getfiledownloadurl(self,pc):
-        tm = str((int(int(time.time()))))
-        pcencode = self.m115_encode((json.dumps({'pickcode': pc})).replace(' ',''),tm)
-        data=self.urlopen('http://proapi.115.com/app/chrome/downurl?t='+tm,data=parse.urlencode({'data':pcencode['data']}))
-        jsondata = json.loads(data[data.index('{'):])
-        if jsondata['state'] != True:
-            return ''
-        decodetmp=self.m115_decode(jsondata['data'], pcencode['key'])
-        bdecode = bytearray()
-        bdecode.extend(decodetmp)
-        jsondata = json.loads(bdecode.decode())
-        jsondata=jsondata[list(jsondata.keys())[0]]
-        #plugin.log.error(type(jsondata))
-    
         result = ''
-        if 'url' in jsondata:
-            result = jsondata['url']['url']
-        #plugin.log.error(result)
-        #xbmc.log(result+'|'+self.downcookie,level=xbmc.LOGERROR)
+        data=self.urlopen("https://webapi.115.com/files/download?pickcode="+pc+"&_="+str(int(time.time())))
+        data= self.jsonload(data)
+        if data['state']:
+            result=data['file_url']
+        if not result:
+            content=self.notegetcontent(cname='pickcodeurl',notetitle=pc)
+            if content:
+                result=content
+        if not result:
+            tm = str((int(int(time.time()))))
+            pcencode = self.m115_encode((json.dumps({'pickcode': pc})).replace(' ',''),tm)
+            data=self.urlopen('http://proapi.115.com/app/chrome/downurl?t='+tm,data=parse.urlencode({'data':pcencode['data']}))
+            jsondata = json.loads(data[data.index('{'):])
+            if jsondata['state'] != True:
+                return ''
+            decodetmp=self.m115_decode(jsondata['data'], pcencode['key'])
+            bdecode = bytearray()
+            bdecode.extend(decodetmp)
+            jsondata = json.loads(bdecode.decode())
+            jsondata=jsondata[list(jsondata.keys())[0]]
+            #plugin.log.error(type(jsondata))
+            if 'url' in jsondata:
+                result = jsondata['url']['url']
+                self.notesavecontent(cname='pickcodeurl',notetitle=pc,content=result)
+            #plugin.log.error(result)
+            #xbmc.log(result+'|'+self.downcookie,level=xbmc.LOGERROR)
         return result+'|'+self.downcookie
 
     def oldgetfiledownloadurl(self,pc):
@@ -1016,20 +1041,20 @@ class MyHandler(BaseHTTPRequestHandler):
                         else:
                             yield td(a(href='#',title='第一页',class_='pagesel')('|<'),class_='pagesel')
                             yield td(a(href='#',title='上一页',class_='pagesel')('<'),class_='pagesel')
-                        def options(ctx):
+                        def optionspage(ctx):
                             for page in range(1,pages+1):
                                 offset=pageitem*(page-1)
                                 url='/files?'+parse.urlencode({'cid': cid,'offset':offset,
                                 'cursorttype':cursorttype,'typefilter':typefilter,'searchvalue':searchvalue,'star': star})
                                 #offlast=offset+pageitem
                                 #if offlast>count:
-                                #	offlast=count
+                                #    offlast=count
                                 strpage='第%03d页'%(page)
                                 if curpage==page:
                                     yield option(value=url,selected='selected',class_='pagesel')(strpage)
                                 else:
                                     yield option(value=url)(strpage)
-                        yield td(select(onchange='if (this.value) window.location.href=this.value',class_='pagesel')(options),class_='pagesel')
+                        yield td(select(onchange='if (this.value) window.location.href=this.value',class_='pagesel')(optionspage),class_='pagesel')
                         yield td('共%03d页'%(pages),class_='pagesel')
                         
                         if curpage<pages:
@@ -1095,21 +1120,21 @@ class MyHandler(BaseHTTPRequestHandler):
                                     # url='/play?'+parse.urlencode({'url': url,'title':title+'.m3u8','mimetype':mimetype}))
                                     # yield li(a(href=url,title=title)(title))
                                     #yield li(a(href=url,type=mimetype)(title),class_='video')
-                                    playurl='/play?'+parse.urlencode({'url': url,'title':item['n']+'.m3u8','mimetype':mimetype,'cid':item['cid'],'pc':item['pc']})
-                                    m3url=('/m3u/%s/%s/%s.m3u8' % (item['pc'],item['sha'],parse.quote_plus(title)))
+                                    playurl='/play?'+parse.urlencode(encode_obj({'url': url,'title':item['n']+'.m3u8','mimetype':mimetype,'cid':item['cid'],'pc':item['pc']}))
+                                    m3url=('/m3u/%s/%s/%s.m3u8' % (item['pc'],item['sha'],parse.quote_plus(six.ensure_binary(title))))
                                     m3url=('%s://%s/m3u/%s/%s/%s.m3u8' % (s.request_version.split('/')[0],
                                                             s.headers.get('Host'),
-                                                            item['pc'],item['sha'],parse.quote_plus(title)))
-                                    m3uplayurl='/play?'+parse.urlencode({'url': m3url,'title':title+'.m3u8','mimetype':'application/x-mpegURL','cid':item['cid'],'pc':item['pc']})
+                                                            item['pc'],item['sha'],parse.quote_plus(six.ensure_binary(title))))
+                                    m3uplayurl='/play?'+parse.urlencode(encode_obj({'url': m3url,'title':title+'.m3u8','mimetype':'application/x-mpegURL','cid':item['cid'],'pc':item['pc']}))
                                     deourl=('deovr://%s://%s/djs/%s/%s.json' % (s.request_version.split('/')[0],
                                                             s.headers.get('Host'),
                                                             parse.quote_plus(url),
-                                                            parse.quote_plus(title),
+                                                            parse.quote_plus(six.ensure_binary(title)),
                                                             ))
                                     m3udeourl=('deovr://%s://%s/djs/%s/%s.json' % (s.request_version.split('/')[0],
                                                             s.headers.get('Host'),
                                                             parse.quote_plus(m3url),
-                                                            parse.quote_plus(title),
+                                                            parse.quote_plus(six.ensure_binary(title)),
                                                             ))
                                     #gizurl=('gizmovr://type=video&url=%s' % (url))
                                     #m3ugizurl=('gizmovr://type=video&url=%s' % (m3url)).encode('latin-1')
@@ -1173,6 +1198,44 @@ class MyHandler(BaseHTTPRequestHandler):
                     s.end_headers()
                     s.wfile.write(htmlrender)
                     
+            elif request_path=='/cookie':
+                qs=parse.parse_qs(urlsp.query, keep_blank_values=True)
+                curformat=str(qs.get('cformat',[0])[0])
+                #xbmc.log(msg='zzzzzzz:'+curformat,level=xbmc.LOGERROR)
+                cookiestr=loadcookiefile(cformat=curformat)
+                #xbmc.log(msg='zzzzzzz:'+cookiestr,level=xbmc.LOGERROR)
+                def tdcformat(ctx):
+                    yield label(for_='cformat')('cookie格式：')
+                    def optionscformat(ctx):
+                        for cformat in ['simple','json','LWP']:
+                            url='/cookie?'+parse.urlencode({'cformat': cformat})
+                            if curformat==cformat:
+                                yield option(value=url,selected='selected',class_='pagesel')(cformat)
+                            else:
+                                yield option(value=url)(cformat)
+                    yield select(id='cformat',onchange='if (this.value) window.location.href=this.value',class_='pagesel')(optionscformat)
+                    
+                def savecookie(ctx):
+                    yield form(action='/cookie',method='GET')(
+                        textarea(rows='40', cols="60", name='cookiestr')(cookiestr),
+                        input_(class_='bigfont', type='submit', name="submit",value='保存',onclick="return confirm('错误的值将造成登录失败，是否继续?')" ),
+                        )
+                s.send_response(200)
+                t = html(
+                    head(
+                        meta(charset='utf-8'),
+                        title('WEB115 COOKIE'),
+                        link(rel='stylesheet',href='/css/styles.css')
+                    ),
+                    body(
+                            tdcformat,
+                            savecookie,
+                    )
+                )
+                htmlrender=six.ensure_binary(t.render())
+                s.send_header('Content-Length', len(htmlrender))
+                s.end_headers()
+                s.wfile.write(htmlrender)
             elif request_path[0:4]=='/sub':
                 try:
                     (suburl,name)=request_path[5:].split('/')
@@ -1239,14 +1302,14 @@ class MyHandler(BaseHTTPRequestHandler):
 
 
     def urlopenwithRetry(s,req):
-        for _ in range(10):
+        for icount in range(10):
             try:
                 opener2 = request.build_opener(SmartRedirectHandler)
                 response= opener2.open(req,timeout=40)
                 return response
                 break
             except:
-                time.sleep(1)
+                time.sleep(icount+1)
                 pass
     '''
     Sends the requested file and add additional headers.
@@ -1428,19 +1491,117 @@ class ThreadedHTTPServer(ThreadingMixIn, Server):
 HOST_NAME = '0.0.0.0'
 PORT_NUMBER =  int(xbmcaddon.Addon().getSetting('listen_port'))
 
-if __name__ == '__main__':
-    #fid_pclist=plugin.get_storage('fid_pclist')
+def loadcookiefile(cformat='simple'):
+    cstr=''
     cookiejar = cookielib.LWPCookieJar()
+    cid=seid=uid=''
     try:
+        cookiefile = xbmc.translatePath(os.path.join(xbmcaddon.Addon(id='plugin.video.115').getAddonInfo('path'), 'cookie.dat'))
         if os.path.exists(cookiefile):
             cookiejar.load(
                 cookiefile, ignore_discard=True, ignore_expires=True)
-            _cookiestr=''
             for k,v in cookiejar._cookies['.115.com']['/'].items():
-                _cookiestr+=str(k)+'='+str(v.value)+';'
+                if k.upper()=='CID': cid=v.value
+                if k.upper()=='SEID': seid=v.value
+                if k.upper()=='UID': uid=v.value
+        if cformat.lower()=='json':
+            cstr='''
+[
+{
+    "domain": "115.com",
+    "hostOnly": false,
+    "httpOnly": true,
+    "name": "CID",
+    "path": "/",
+    "sameSite": "no_restriction",
+    "secure": false,
+    "session": true,
+    "storeId": "0",
+    "value": "%s",
+    "id": 1
+},
+{
+    "domain": "115.com",
+    "hostOnly": false,
+    "httpOnly": true,
+    "name": "SEID",
+    "path": "/",
+    "sameSite": "no_restriction",
+    "secure": false,
+    "session": true,
+    "storeId": "0",
+    "value": "%s",
+    "id": 2
+},
+{
+    "domain": "115.com",
+    "hostOnly": false,
+    "httpOnly": true,
+    "name": "UID",
+    "path": "/",
+    "sameSite": "no_restriction",
+    "secure": false,
+    "session": true,
+    "storeId": "0",
+    "value": "%s",
+    "id": 3
+}
+]
+'''%(cid,seid,uid)
+        elif cformat.lower()=='lwp':
+            cstr='''
+#LWP-Cookies-2.0
+Set-Cookie3: CID=%s; path="/"; domain="115.com"; path_spec; domain_dot; discard; HttpOnly=None; version=0
+Set-Cookie3: SEID=%s; path="/"; domain="115.com"; path_spec; domain_dot; discard; HttpOnly=None; version=0
+Set-Cookie3: UID=%s; path="/"; domain="115.com"; path_spec; domain_dot; discard; HttpOnly=None; version=0
+'''%(cid,seid,uid)
+        else:
+            cstr='CID=%s;SEID=%s;UID=%s'%(cid,seid,uid)
+        return cstr
     except:
         xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
-        exit()
+
+def savecookiefile(cstr):
+    cid=seid=uid=''
+    try:
+        cookies=json.loads(cstr)
+        for cookie in cookies:
+            if 'name' in cookie and 'value' in cookie:
+                if cookie['name'] == 'CID': cid = cookie['value']
+                if cookie['name'] == 'SEID': seid = cookie['value']
+                if cookie['name'] == 'UID': uid = cookie['value']
+    except:
+        cid=''
+    if cid=='':
+        match = re.search(r'CID\s*\x3D\s*(?P<value>[A-Za-z0-9\x5F]*?)\x3B', cstr, re.IGNORECASE | re.MULTILINE)
+        if match:
+            cid = match.group('value')
+        match = re.search(r'SEID\s*\x3D\s*(?P<value>[A-Za-z0-9\x5F]*?)\x3B', cstr, re.IGNORECASE | re.MULTILINE)
+        if match:
+            seid = match.group('value')
+        match = re.search(r'UID\s*\x3D\s*(?P<value>[A-Za-z0-9\x5F]*?)\x3B', cstr, re.IGNORECASE | re.MULTILINE)
+        if match:
+            uid = match.group('value')
+    if cid=='': return False
+    cookiedat='''
+#LWP-Cookies-2.0
+Set-Cookie3: CID=%s; path="/"; domain="115.com"; path_spec; domain_dot; discard; HttpOnly=None; version=0
+Set-Cookie3: SEID=%s; path="/"; domain="115.com"; path_spec; domain_dot; discard; HttpOnly=None; version=0
+Set-Cookie3: UID=%s; path="/"; domain="115.com"; path_spec; domain_dot; discard; HttpOnly=None; version=0
+'''%(cid,seid,uid)
+    try:
+        cookiefilename = xbmc.translatePath(os.path.join(xbmcaddon.Addon(id='plugin.video.115').getAddonInfo('path'), 'cookie.dat'))
+        with open(cookiefilename, "wb") as cookieFile:
+            cookieFile.write(six.ensure_binary(cookiedat))
+            cookieFile.close()
+        return True
+    except:
+        xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
+        return False
+
+if __name__ == '__main__':
+    #fid_pclist=plugin.get_storage('fid_pclist')
+    _cookiestr=loadcookiefile()
     fid_pclist={}
     fid_downloadurls={}
     socket.setdefaulttimeout(40)
