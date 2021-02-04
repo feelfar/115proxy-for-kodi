@@ -110,6 +110,7 @@ class PassRedirectHandler(request.HTTPRedirectHandler):
         return infourl
         
 class api_115(object):
+    downcookie=''
     def __init__(self, cookstr):
         if cookstr=='0':
             cookstr=_cookiestr
@@ -278,7 +279,7 @@ class api_115(object):
     def notegetcateid(self,cname):
         cid=0
         data=self.notecatelist()
-        if data['state']:
+        if data['state'] and data['data']:
             for cate in data['data']:
                 if cate['cname']==cname:
                     cid=int(cate['cid'])
@@ -314,7 +315,7 @@ class api_115(object):
         cid=self.notegetcateid(cname)
         data=self.notelist(cid=cid,start=0)
         nid=0
-        if data['state']:
+        if data['state'] and data['data']:
             for note in data['data']:
                 if note['title']==notetitle:
                     nid=int(note['nid'])
@@ -324,18 +325,41 @@ class api_115(object):
             if data['state']:
                 content=data['data']['content']
         return content
+
+    def notegetpcurl(self,pc):
+        content=''
+        cid=self.notegetcateid('pickcodeurl')
+        data=self.notelist(cid=cid,start=0)
+        nid=0
+        nidolds=''
+        if data['state'] and data['data']: 
+            curtime = int(time.time())
+            for note in data['data']:
+                if curtime > int(note['create_time'])+60*3600:
+                    nidolds+=note['nid']+','
+                else:
+                    if note['title']==pc:
+                        nid=int(note['nid'])
+                        break
+        if nidolds:
+             self.notedelete(nidolds)
+        if nid:
+            data = self.notedetail(nid)
+            if data['state']:
+                content=data['data']['content']
+        return content
+            
             
     def notesavecontent(self,cname,notetitle,content):
         state=False
         cid=self.notegetcateid(cname)
         data=self.notelist(cid=cid,start=0)
         nid=0
-        if data['state']:
+        if data['state'] and data['data']:
             for note in data['data']:
                 if note['title']==notetitle:
                     nid=int(note['nid'])
                     break
-        
         data = self.notesave(cid=cid,nid=nid,title=notetitle,content=content)
         state = data['state']
         return state
@@ -345,7 +369,7 @@ class api_115(object):
         cid=self.notegetcateid(cname)
         data=self.notelist(cid=cid,start=90)
         nids=''
-        if data['state']:
+        if data['state'] and data['data']:
             for note in data['data']:
                 nids=nids+note['nid']+','
         if nids:
@@ -516,16 +540,16 @@ wlHF+mkTJpKd5Wacef0vV+xumqNorvLpIXWKwxNaoHM=
 
     def getfiledownloadurl(self,pc):
         result = ''
-        data=self.urlopen("https://webapi.115.com/files/download?pickcode="+pc+"&_="+str(int(time.time())))
+        tm = str((int(int(time.time()))))
+        data=self.urlopen("https://webapi.115.com/files/download?pickcode="+pc+"&_="+tm)
         data= self.jsonload(data)
         if data['state']:
             result=data['file_url']
         if not result:
-            content=self.notegetcontent(cname='pickcodeurl',notetitle=pc)
+            content=self.notegetpcurl(pc=pc)
             if content:
                 result=content
         if not result:
-            tm = str((int(int(time.time()))))
             pcencode = self.m115_encode((json.dumps({'pickcode': pc})).replace(' ',''),tm)
             data=self.urlopen('http://proapi.115.com/app/chrome/downurl?t='+tm,data=parse.urlencode({'data':pcencode['data']}))
             jsondata = json.loads(data[data.index('{'):])
@@ -1201,6 +1225,11 @@ class MyHandler(BaseHTTPRequestHandler):
             elif request_path=='/cookie':
                 qs=parse.parse_qs(urlsp.query, keep_blank_values=True)
                 curformat=str(qs.get('cformat',[0])[0])
+                ac=str(qs.get('ac',[0])[0])
+                if ac=='save':
+                    cookiestr=str(qs.get('cookiestr',[0])[0])
+                    savecookiefile(cookiestr)
+                    _cookiestr=loadcookiefile()
                 #xbmc.log(msg='zzzzzzz:'+curformat,level=xbmc.LOGERROR)
                 cookiestr=loadcookiefile(cformat=curformat)
                 #xbmc.log(msg='zzzzzzz:'+cookiestr,level=xbmc.LOGERROR)
@@ -1217,6 +1246,7 @@ class MyHandler(BaseHTTPRequestHandler):
                     
                 def savecookie(ctx):
                     yield form(action='/cookie',method='GET')(
+                        input_( type='hidden', name='ac',value='save'),
                         textarea(rows='40', cols="60", name='cookiestr')(cookiestr),
                         input_(class_='bigfont', type='submit', name="submit",value='保存',onclick="return confirm('错误的值将造成登录失败，是否继续?')" ),
                         )
@@ -1228,8 +1258,8 @@ class MyHandler(BaseHTTPRequestHandler):
                         link(rel='stylesheet',href='/css/styles.css')
                     ),
                     body(
-                            tdcformat,
-                            savecookie,
+                        tdcformat,
+                        savecookie,
                     )
                 )
                 htmlrender=six.ensure_binary(t.render())
@@ -1500,10 +1530,10 @@ def loadcookiefile(cformat='simple'):
         if os.path.exists(cookiefile):
             cookiejar.load(
                 cookiefile, ignore_discard=True, ignore_expires=True)
-            for k,v in cookiejar._cookies['.115.com']['/'].items():
-                if k.upper()=='CID': cid=v.value
-                if k.upper()=='SEID': seid=v.value
-                if k.upper()=='UID': uid=v.value
+            for cookie in cookiejar:
+                if cookie.name.upper()=='CID': cid=cookie.value
+                if cookie.name.upper()=='SEID': seid=cookie.value
+                if cookie.name.upper()=='UID': uid=cookie.value
         if cformat.lower()=='json':
             cstr='''
 [
@@ -1549,12 +1579,10 @@ def loadcookiefile(cformat='simple'):
 ]
 '''%(cid,seid,uid)
         elif cformat.lower()=='lwp':
-            cstr='''
-#LWP-Cookies-2.0
+            cstr='''#LWP-Cookies-2.0
 Set-Cookie3: CID=%s; path="/"; domain="115.com"; path_spec; domain_dot; discard; HttpOnly=None; version=0
 Set-Cookie3: SEID=%s; path="/"; domain="115.com"; path_spec; domain_dot; discard; HttpOnly=None; version=0
-Set-Cookie3: UID=%s; path="/"; domain="115.com"; path_spec; domain_dot; discard; HttpOnly=None; version=0
-'''%(cid,seid,uid)
+Set-Cookie3: UID=%s; path="/"; domain="115.com"; path_spec; domain_dot; discard; HttpOnly=None; version=0'''%(cid,seid,uid)
         else:
             cstr='CID=%s;SEID=%s;UID=%s'%(cid,seid,uid)
         return cstr
@@ -1562,6 +1590,7 @@ Set-Cookie3: UID=%s; path="/"; domain="115.com"; path_spec; domain_dot; discard;
         xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
 
 def savecookiefile(cstr):
+    xbmc.log(msg='zzzzzzz:'+cstr,level=xbmc.LOGERROR)
     cid=seid=uid=''
     try:
         cookies=json.loads(cstr)
@@ -1573,22 +1602,21 @@ def savecookiefile(cstr):
     except:
         cid=''
     if cid=='':
-        match = re.search(r'CID\s*\x3D\s*(?P<value>[A-Za-z0-9\x5F]*?)\x3B', cstr, re.IGNORECASE | re.MULTILINE)
+        match = re.search(r'CID\s*\x3D\s*(?P<value>[A-Za-z0-9\x5F]+)', cstr, re.IGNORECASE | re.MULTILINE)
         if match:
             cid = match.group('value')
-        match = re.search(r'SEID\s*\x3D\s*(?P<value>[A-Za-z0-9\x5F]*?)\x3B', cstr, re.IGNORECASE | re.MULTILINE)
+        match = re.search(r'SEID\s*\x3D\s*(?P<value>[A-Za-z0-9\x5F]+)', cstr, re.IGNORECASE | re.MULTILINE)
         if match:
             seid = match.group('value')
-        match = re.search(r'UID\s*\x3D\s*(?P<value>[A-Za-z0-9\x5F]*?)\x3B', cstr, re.IGNORECASE | re.MULTILINE)
+        match = re.search(r'UID\s*\x3D\s*(?P<value>[A-Za-z0-9\x5F]+)', cstr, re.IGNORECASE | re.MULTILINE)
         if match:
             uid = match.group('value')
     if cid=='': return False
-    cookiedat='''
-#LWP-Cookies-2.0
+    cookiedat='''#LWP-Cookies-2.0
 Set-Cookie3: CID=%s; path="/"; domain="115.com"; path_spec; domain_dot; discard; HttpOnly=None; version=0
 Set-Cookie3: SEID=%s; path="/"; domain="115.com"; path_spec; domain_dot; discard; HttpOnly=None; version=0
-Set-Cookie3: UID=%s; path="/"; domain="115.com"; path_spec; domain_dot; discard; HttpOnly=None; version=0
-'''%(cid,seid,uid)
+Set-Cookie3: UID=%s; path="/"; domain="115.com"; path_spec; domain_dot; discard; HttpOnly=None; version=0'''%(cid,seid,uid)
+    xbmc.log(msg='zzzzzzz:'+cookiedat,level=xbmc.LOGERROR)
     try:
         cookiefilename = xbmc.translatePath(os.path.join(xbmcaddon.Addon(id='plugin.video.115').getAddonInfo('path'), 'cookie.dat'))
         with open(cookiefilename, "wb") as cookieFile:
