@@ -271,7 +271,7 @@ class api_115(object):
         try:
             req = request.Request(url,headers = self.headers)
             req.get_method = lambda : 'HEAD'
-            req.session().config['keep_alive'] = False
+            req.add_header('keep_alive','false' )
             opener = request.build_opener(SmartRedirectHandler)
             rsp = opener.open(req, timeout=15)
             rsp.close()
