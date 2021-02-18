@@ -269,13 +269,15 @@ class api_115(object):
     
     def url_is_alive(self,url):
         try:
+            rspcode=0
             req = request.Request(url,headers = self.headers)
             req.get_method = lambda : 'HEAD'
-            req.add_header('keep_alive','false' )
+            req.add_header('keep_alive','false')
             opener = request.build_opener(SmartRedirectHandler)
             rsp = opener.open(req, timeout=15)
+            rspcode=rsp.code
             rsp.close()
-            return True
+            return rspcode==200
         except:
             xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
             return False
@@ -347,7 +349,7 @@ class api_115(object):
         if data['state'] and data['data']: 
             curtime = int(time.time())
             for note in data['data']:
-                if curtime > int(note['create_time'])+48*3600:
+                if curtime > int(note['create_time'])+480*3600:
                     nidolds+=note['nid']+','
                 else:
                     if note['title']==pc:
@@ -551,7 +553,7 @@ wlHF+mkTJpKd5Wacef0vV+xumqNorvLpIXWKwxNaoHM=
         return self.m115_sym_decode(bsrc2, len(tmp) - 16, bkey1,bkey2)
 
             
-    def getfiledownloadurl(self,pc, aliveCheck):
+    def getfiledownloadurl(self,pc):
         result = ''
         tm = str((int(int(time.time()))))
         data=self.urlopen("https://webapi.115.com/files/download?pickcode="+pc+"&_="+tm)
@@ -1323,7 +1325,7 @@ class MyHandler(BaseHTTPRequestHandler):
             #xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
             pass
 
-    def getfidUrl(s, fid, cookiestr, aliveCheck):
+    def getfidUrl(s, fid, cookiestr):
         xl = api_115(cookiestr)
         filecopypc=''
         cid=''
@@ -1336,7 +1338,7 @@ class MyHandler(BaseHTTPRequestHandler):
                     fidUrl=''
             if fidUrl=='':
                 fpc=xl.getpc(fid)
-                fidUrl=xl.getfiledownloadurl(fpc, aliveCheck)
+                fidUrl=xl.getfiledownloadurl(fpc)
                 s.fidDownloadurl[fid]=str(int(time.time()))+' '+fidUrl
             return fidUrl
         except Exception as errno:
@@ -1359,7 +1361,7 @@ class MyHandler(BaseHTTPRequestHandler):
     Sends the requested file and add additional headers.
     '''
     def serveFile(s, fid, cookiestr, changeserver, sendData,name):
-        fidUrl = s.getfidUrl( fid, cookiestr, aliveCheck=(sendData==0))
+        fidUrl = s.getfidUrl( fid, cookiestr)
         if not fidUrl:
             s.send_response(403)
             return
@@ -1604,7 +1606,6 @@ Set-Cookie3: UID=%s; path="/"; domain="115.com"; path_spec; domain_dot; discard;
         xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
 
 def savecookiefile(cstr):
-    xbmc.log(msg='zzzzzzz:'+cstr,level=xbmc.LOGERROR)
     cid=seid=uid=''
     try:
         cookies=json.loads(cstr)
@@ -1630,7 +1631,7 @@ def savecookiefile(cstr):
 Set-Cookie3: CID=%s; path="/"; domain="115.com"; path_spec; domain_dot; discard; HttpOnly=None; version=0
 Set-Cookie3: SEID=%s; path="/"; domain="115.com"; path_spec; domain_dot; discard; HttpOnly=None; version=0
 Set-Cookie3: UID=%s; path="/"; domain="115.com"; path_spec; domain_dot; discard; HttpOnly=None; version=0'''%(cid,seid,uid)
-    xbmc.log(msg='zzzzzzz:'+cookiedat,level=xbmc.LOGERROR)
+    
     try:
         cookiefilename = xbmc.translatePath(os.path.join(xbmcaddon.Addon(id='plugin.video.115').getAddonInfo('path'), 'cookie.dat'))
         with open(cookiefilename, "wb") as cookieFile:
