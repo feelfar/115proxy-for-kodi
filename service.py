@@ -346,10 +346,9 @@ class api_115(object):
         data=self.notelist(cid=cid,start=0)
         nid=0
         nidolds=''
-        if data['state'] and data['data']: 
-            curtime = int(time.time())
+        if data['state'] and data['data']:
             for note in data['data']:
-                if curtime > int(note['create_time'])+60*3600:
+                if (int(time.time()) - int(note['create_time']))>60*3600:
                     nidolds+=note['nid']+','
                 else:
                     if note['title']==pc:
