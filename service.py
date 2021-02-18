@@ -349,7 +349,7 @@ class api_115(object):
         if data['state'] and data['data']: 
             curtime = int(time.time())
             for note in data['data']:
-                if curtime > int(note['create_time'])+480*3600:
+                if curtime > int(note['create_time'])+60*3600:
                     nidolds+=note['nid']+','
                 else:
                     if note['title']==pc:
@@ -1334,7 +1334,7 @@ class MyHandler(BaseHTTPRequestHandler):
             if fid in s.fidDownloadurl:
                 (strtime,fidUrl)=s.fidDownloadurl[fid].split(' ')
                 timespan=int(time.time())-int(strtime)
-                if timespan>=18000:
+                if timespan>=7200:
                     fidUrl=''
             if fidUrl=='':
                 fpc=xl.getpc(fid)
