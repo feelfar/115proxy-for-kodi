@@ -266,7 +266,19 @@ class api_115(object):
         except Exception as errno:
             xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
             return ''
-            
+    
+    def url_is_alive(self,url):
+        try:
+            req = request.Request(url,headers = self.headers)
+            req.get_method = lambda : 'HEAD'
+            req.session().config['keep_alive'] = False
+            opener = request.build_opener(SmartRedirectHandler)
+            rsp = opener.open(req, timeout=15)
+            rsp.close()
+            return True
+        except:
+            xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
+            return False
     def notecatelist(self):
         data=self.urlopen('https://note.115.com/?ct=note&ac=cate&has_picknews=1')
         return self.jsonload(data)
@@ -335,7 +347,7 @@ class api_115(object):
         if data['state'] and data['data']: 
             curtime = int(time.time())
             for note in data['data']:
-                if curtime > int(note['create_time'])+60*3600:
+                if curtime > int(note['create_time'])+48*3600:
                     nidolds+=note['nid']+','
                 else:
                     if note['title']==pc:
@@ -538,7 +550,8 @@ wlHF+mkTJpKd5Wacef0vV+xumqNorvLpIXWKwxNaoHM=
         bsrc2.extend(tmp[16:])
         return self.m115_sym_decode(bsrc2, len(tmp) - 16, bkey1,bkey2)
 
-    def getfiledownloadurl(self,pc):
+            
+    def getfiledownloadurl(self,pc, aliveCheck):
         result = ''
         tm = str((int(int(time.time()))))
         data=self.urlopen("https://webapi.115.com/files/download?pickcode="+pc+"&_="+tm)
@@ -548,7 +561,8 @@ wlHF+mkTJpKd5Wacef0vV+xumqNorvLpIXWKwxNaoHM=
         if not result:
             content=self.notegetpcurl(pc=pc)
             if content:
-                result=content
+                if self.url_is_alive(content):
+                    result=content
         if not result:
             pcencode = self.m115_encode((json.dumps({'pickcode': pc})).replace(' ',''),tm)
             data=self.urlopen('http://proapi.115.com/app/chrome/downurl?t='+tm,data=parse.urlencode({'data':pcencode['data']}))
@@ -1309,7 +1323,7 @@ class MyHandler(BaseHTTPRequestHandler):
             #xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
             pass
 
-    def getfidUrl(s, fid, cookiestr):
+    def getfidUrl(s, fid, cookiestr, aliveCheck):
         xl = api_115(cookiestr)
         filecopypc=''
         cid=''
@@ -1322,7 +1336,7 @@ class MyHandler(BaseHTTPRequestHandler):
                     fidUrl=''
             if fidUrl=='':
                 fpc=xl.getpc(fid)
-                fidUrl=xl.getfiledownloadurl(fpc)
+                fidUrl=xl.getfiledownloadurl(fpc, aliveCheck)
                 s.fidDownloadurl[fid]=str(int(time.time()))+' '+fidUrl
             return fidUrl
         except Exception as errno:
@@ -1340,12 +1354,12 @@ class MyHandler(BaseHTTPRequestHandler):
                 break
             except:
                 time.sleep(icount+1)
-                pass
+                continue
     '''
     Sends the requested file and add additional headers.
     '''
     def serveFile(s, fid, cookiestr, changeserver, sendData,name):
-        fidUrl = s.getfidUrl( fid, cookiestr)
+        fidUrl = s.getfidUrl( fid, cookiestr, aliveCheck=(sendData==0))
         if not fidUrl:
             s.send_response(403)
             return
