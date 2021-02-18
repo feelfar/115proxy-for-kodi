@@ -348,7 +348,8 @@ class api_115(object):
         nidolds=''
         if data['state'] and data['data']:
             for note in data['data']:
-                if (int(time.time()) - int(note['create_time']))>60*3600:
+                #xbmc.log(msg='zzzzz: %s %s %d %d'%(pc,note['title'],int(time.time()) , int(note['update_time'])),level=xbmc.LOGERROR)
+                if (int(time.time()) - int(note['update_time']))>60*3600:
                     nidolds+=note['nid']+','
                 else:
                     if note['title']==pc:
