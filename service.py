@@ -275,9 +275,9 @@ class api_115(object):
             req.add_header('keep_alive','false')
             opener = request.build_opener(SmartRedirectHandler)
             rsp = opener.open(req, timeout=15)
-            rspcode=rsp.code
+            rspcode=str(rsp.code)
             rsp.close()
-            return rspcode==200
+            return rspcode=='200'
         except:
             xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
             return False
@@ -315,7 +315,7 @@ class api_115(object):
         return self.jsonload(data)
     
     def notedelete(self,nid):
-        data = parse.urlencode(encode_obj({'nid': id}))
+        data = parse.urlencode(encode_obj({'nid': nid}))
         data = self.urlopen('https://note.115.com/?ct=note&ac=delete',data=data)
         return self.jsonload(data)
         
@@ -564,6 +564,7 @@ wlHF+mkTJpKd5Wacef0vV+xumqNorvLpIXWKwxNaoHM=
             content=self.notegetpcurl(pc=pc)
             if content:
                 if self.url_is_alive(content):
+                    #xbmc.log('url_is_alive '+content,level=xbmc.LOGERROR)
                     result=content
         if not result:
             pcencode = self.m115_encode((json.dumps({'pickcode': pc})).replace(' ',''),tm)
@@ -576,12 +577,10 @@ wlHF+mkTJpKd5Wacef0vV+xumqNorvLpIXWKwxNaoHM=
             bdecode.extend(decodetmp)
             jsondata = json.loads(bdecode.decode())
             jsondata=jsondata[list(jsondata.keys())[0]]
-            #plugin.log.error(type(jsondata))
             if 'url' in jsondata:
                 result = jsondata['url']['url']
                 self.notesavecontent(cname='pickcodeurl',notetitle=pc,content=result)
-            #plugin.log.error(result)
-            #xbmc.log(result+'|'+self.downcookie,level=xbmc.LOGERROR)
+        #xbmc.log('url_return '+result,level=xbmc.LOGERROR)
         return result+'|'+self.downcookie
 
     def oldgetfiledownloadurl(self,pc):
