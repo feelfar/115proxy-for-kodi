@@ -3,7 +3,7 @@
 	<!-- Proxy Settings -->
 	<category label="设置">
 		<setting id="listen_port" type="number" label="端口" default="6227"/>
-		<setting id="video_code" type="enum" label="码率优先方式" values="原码优先|MP4原码优先|转码优先" default="0"/>
-		<setting id="pageitem" type="number" label="WEB每页文件数" default="50"/>
+<!-- 		<setting id="video_code" type="enum" label="码率优先方式" values="原码优先|MP4原码优先|转码优先" default="0"/>
+		<setting id="pageitem" type="number" label="WEB每页文件数" default="50"/> -->
 	</category>
 </settings>
