@@ -144,11 +144,13 @@ class api_115(object):
                     reponse = rsp.read()
                 if not binary:
                     reponse=six.ensure_text(reponse)
-                if 'Set-Cookie' in rsp.headers:
-                    downcookies = re.findall(r'(?:[0-9abcdef]{20,}|acw_tc)\s*\x3D\s*[0-9abcdef]{20,}', rsp.headers['Set-Cookie'], re.DOTALL | re.MULTILINE)
-                    self.downcookie=''
-                    for downcook in downcookies:
-                        self.downcookie+=downcook+';'
+                #xbmc.log(msg=str(rsp.headers),level=xbmc.LOGERROR)
+                self.downcookie=''
+                for key,value in rsp.headers.items():
+                    if key.lower()=='set-cookie':
+                        downcookies = re.findall(r'(?:[0-9abcdef]{20,}|acw_tc)\s*\x3D\s*[0-9abcdef]{20,}', value, re.DOTALL | re.MULTILINE)
+                        for downcook in downcookies:
+                            self.downcookie+=downcook+';'
                 rsp.close()
                 break
             except Exception as e:
@@ -551,8 +553,7 @@ wlHF+mkTJpKd5Wacef0vV+xumqNorvLpIXWKwxNaoHM=
         bsrc2 = bytearray()
         bsrc2.extend(tmp[16:])
         return self.m115_sym_decode(bsrc2, len(tmp) - 16, bkey1,bkey2)
-
-            
+        
     def getfiledownloadurl(self,pc):
         result = ''
         tm = str((int(int(time.time()))))
@@ -1404,6 +1405,7 @@ class MyHandler(BaseHTTPRequestHandler):
         #request.add_header('Cookie',cookiestr+downcookie+';')
         reqheaders['User-Agent']='Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 6.2; Trident/6.0)'
         reqheaders['Referer']='https://115.com/?cid=0&offset=0&mode=wangpan'
+        if cookiestr=='0': cookiestr=''
         reqheaders['Cookie']=cookiestr+downcookie+';'
         #处理转发请求headers---end
         #转发请求
