@@ -191,7 +191,7 @@ from __future__ import print_function
 import sys
 from copy import deepcopy
 from types import GeneratorType
-import six
+import lib.six as six
 
 if sys.version_info[0] >= 3:
     from typing import Dict, List  # noqa

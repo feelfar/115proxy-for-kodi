@@ -19,12 +19,13 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 MA 02110-1301, USA.
 '''
 from  __future__  import unicode_literals
-import sys,six
-from six.moves.urllib import parse
-from six.moves.urllib import request
-from six.moves.urllib import response 
-from six.moves import http_cookiejar as cookielib
-from six.moves import html_entities as htmlentitydefs
+import sys
+import lib.six as six
+from lib.six.moves.urllib import parse
+from lib.six.moves.urllib import request
+from lib.six.moves.urllib import response 
+from lib.six.moves import http_cookiejar as cookielib
+from lib.six.moves import html_entities as htmlentitydefs
 import base64
 import uuid
 import re
@@ -43,8 +44,8 @@ import mimetypes
 import shutil
 #import ssl
 from traceback import format_exc
-from six.moves.socketserver import ThreadingMixIn
-from six.moves.BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
+from lib.six.moves.socketserver import ThreadingMixIn
+from lib.six.moves.BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
 from Cryptodome import Random
 from Cryptodome.Hash import MD5
 from Cryptodome.Hash import SHA
