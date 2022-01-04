@@ -364,7 +364,7 @@ class api_115(object):
         return fidsha1
     
     def exportcid(self,outlist,cid,pathdeep=0):
-        data=self.getfilelist(cid=cid,offset=0,pageitem=10,star='0',sorttype='user_ptime',sortasc='0')
+        data=self.getfilelist(cid=cid,offset=0,pageitem=1150,star='0',sorttype='user_ptime',sortasc='0')
         paths=''
         pathlist=[]
         if 'path' in data:
