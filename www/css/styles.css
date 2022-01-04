@@ -66,6 +66,12 @@ td a:hover {
 	background-color: #99ffcc;
 }
 
+.sha1{
+	color: #000;
+	background-color: #ccff99;
+	font-size:1.2vw
+}
+
 .pagesel{
 	color: #000;
 	background-color: #CCFFCC;
@@ -75,6 +81,11 @@ td a:hover {
 .loctd{
 	max-width: 5%; 
 	width: 5%;
+}
+
+.sha1td{
+	max-width: 10%; 
+	width: 10%;
 }
 
 .loc{

@@ -26,6 +26,7 @@ from lib.six.moves.urllib import request
 from lib.six.moves.urllib import response 
 from lib.six.moves import http_cookiejar as cookielib
 from lib.six.moves import html_entities as htmlentitydefs
+from datetime import datetime
 import base64
 import uuid
 import re
@@ -48,7 +49,7 @@ from lib.six.moves.socketserver import ThreadingMixIn
 from lib.six.moves.BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
 from Cryptodome import Random
 from Cryptodome.Hash import MD5
-from Cryptodome.Hash import SHA
+from Cryptodome.Hash import SHA1
 from Cryptodome.Cipher import PKCS1_OAEP, PKCS1_v1_5
 from Cryptodome.PublicKey import RSA
 
@@ -122,6 +123,10 @@ class api_115(object):
             'Accept-encoding': 'gzip,deflate',
             'Cookie': cookstr,
         }
+        self.user_id=None
+        self.user_key=None
+        if self.get_userkey() is False:
+            xbmc.log(msg='Get userkey info failed!',level=xbmc.LOGERROR)
             
     def urlopen(self,url, data=None,referer=None,binary=False):
         #url=url
@@ -255,6 +260,22 @@ class api_115(object):
             xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
             return False
             
+    def countfiles(self,cid):
+        try:
+            data=self.urlopen('https://webapi.115.com/category/get?cid=%s'%(cid))
+            data= json.loads(data[data.index('{'):])
+            return int(data['count'])
+        except Exception as errno:
+            xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
+            
+    def pathdeep(self,cid):
+        try:
+            data=self.urlopen('https://webapi.115.com/category/get?cid=%s'%(cid))
+            data= json.loads(data[data.index('{'):])
+            return int(len(data['paths']))
+        except Exception as errno:
+            xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
+            
     def delete(self,fids):
         data={'pid':0}
         i=0
@@ -270,6 +291,100 @@ class api_115(object):
             xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
             return ''
     
+    def get_userkey(self):
+        try:
+            data=self.urlopen('http://proapi.115.com/app/uploadinfo')
+            data= json.loads(data[data.index('{'):])
+            self.user_id=str(data['user_id'])
+            self.user_key=str(data['userkey']).upper()
+        except Exception as errno:
+            xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
+            return False
+            
+    def get_preid(self,pc):
+        try:
+            file_url=self.getfiledownloadurl(pc)
+            filedownloadurl,downcookie=file_url.split('|')
+
+            reqheaders={}
+            reqheaders['User-Agent']='Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 6.2; Trident/6.0)'
+            reqheaders['Referer']='https://115.com/?cid=0&offset=0&mode=wangpan'
+            reqheaders['Cookie']=self.headers['Cookie']+downcookie+';'
+            reqheaders['Range']='bytes=0-131071';
+            req = request.Request(filedownloadurl, headers=reqheaders)
+            response=None
+            preid=''
+            opener = request.build_opener(SmartRedirectHandler)
+            rsp = opener.open(req, timeout=15)
+            if rsp.info().get('Content-Encoding') == 'gzip':
+                reponse = gzip.GzipFile(fileobj=six.BytesIO(rsp.read())).read()
+            else:
+                reponse = rsp.read()
+            sha = SHA1.new()
+            sha.update(bytes(reponse))
+            preid = sha.hexdigest()
+            return preid.upper()
+        except Exception as errno:
+            xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
+            return ''
+        
+    def import_file_with_sha1(self,preid,fileid,filesize,filename,cid):
+        target='U_1_'+str(cid)
+        tm=int(time.time())
+        sha=SHA1.new()
+        sha.update( str.encode(self.user_id+fileid+ fileid +target+'0'))
+        s1 = sha.hexdigest()
+        s2=self.user_key+s1+"000000"
+        sha=SHA1.new()
+        sha.update(str.encode(s2))
+        sig=sha.hexdigest().upper()
+        
+        url=("http://uplb.115.com/3.0/initupload.php?isp=0&appid=0&appversion=25.2.0&format=json&sig=%s")%(sig)
+        postData=('preid=%s&fileid=%s&quickid=%s&app_ver=25.2.0&filename=%s&filesize=%s&exif=&target=%s&userid=%s')%(preid,fileid,fileid,filename,filesize,target,self.user_id)
+        try:
+            data=self.urlopen(url,data=postData)
+            data= json.loads(data[data.index('{'):])
+            
+            if data['status']==2 and data['statuscode']==0:
+                return True
+            else:
+                xbmc.log(msg=filename+' upload failed.',level=xbmc.LOGERROR)
+                return False
+        except Exception as errno:
+            xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
+            return False
+            
+    def exportfid(self,name,length,sha1,pc):
+        fidsha1=''
+        try:
+            preid=self.get_preid(pc)
+            fidsha1='115://'+name+'|'+length+'|'+sha1+'|'+preid;
+        except Exception as e:
+            xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
+        return fidsha1
+    
+    def exportcid(self,outlist,cid,pathdeep=0):
+        data=self.getfilelist(cid=cid,offset=0,pageitem=10,star='0',sorttype='user_ptime',sortasc='0')
+        paths=''
+        pathlist=[]
+        if 'path' in data:
+            for item in data['path']:
+                pathlist.append(item['name'])
+            if len(pathlist)>=pathdeep:
+                pathlist=pathlist[pathdeep:]
+            paths='|'.join(pathlist)
+        if 'data' in data:
+            resp = data['data']
+        for d in resp:
+            if 'fid' in d:
+                fidsha1=self.exportfid(d['n'],str(d['s']),d['sha'],d['pc'])
+                if paths!='':
+                    fidsha1=fidsha1+'|'+paths
+                outlist.append(fidsha1)
+            elif 'pid' in d:
+                cid=d['cid']
+                self.exportcid(outlist,cid,pathdeep)
+        
     def url_is_alive(self,url):
         try:
             rspcode=0
@@ -1017,6 +1132,9 @@ class MyHandler(BaseHTTPRequestHandler):
                 data=xl.getfilelist(cid=cid,offset=offset,pageitem=pageitem,star=star,sorttype=sorttype,sortasc=sortasc,typefilter=typefilter,nf='0',search_value=searchstr)
                 #xbmc.log(str(data),level=xbmc.LOGERROR)
                 if data['state']:
+                    def sha1inout(ctx):
+                        for title, url in [('导入SHA1','/sha1?'+parse.urlencode({'mode':'beginimport','cid': cid}))]:
+                            yield td(a(href=url,class_='sha1import')(title))
                     def sort(ctx):
                         for title, url in [
                                         ('从新到旧','/files?'+parse.urlencode({'cid': cid,'offset':0,'pageitem':pageitem,'typefilter':typefilter,'cursorttype':0,'searchvalue':searchvalue,'star': star})),
@@ -1131,16 +1249,20 @@ class MyHandler(BaseHTTPRequestHandler):
                                 item=data['data'][item]
                             title=''
                             url=''
+                            sha1url=''
                             locurl=''
+                            ifFolder=False
                             isvideo=False
                             ism3u8=False
                             mimetype=''
                             if 'sha' in item:
+                                ifFolder=False
                                 if cid!=int(item['cid']):
                                     locurl='/files?'+parse.urlencode({'cid':item['cid'],'offset':0,'pageitem':pageitem,'typefilter':typefilter,'cursorttype':0,'searchvalue':''})
                                 title=item['n']
                                 mimetype, _ =mimetypes.guess_type('a.'+item['ico'].lower())
                                 url='%s://%s/115/%s/%s/%s/%s' % (s.request_version.split('/')[0],s.headers.get('Host'),item['fid'],'0','0',parse.quote_plus(six.ensure_binary(title)))
+                                sha1url='/sha1?'+parse.urlencode({'mode':'exportfid','name': item['n'],'length': item['s'],'sha1': item['sha'],'pc': item['pc']})
                                 #if item['ico'].lower() in ['mp4', 'wmv', 'avi', 'mkv', 'mpg','ts','vob','m4v','mov','flv','rmvb']:
                                 if 'iv' in item:
                                     isvideo=True
@@ -1167,10 +1289,13 @@ class MyHandler(BaseHTTPRequestHandler):
                             else:
                                 if item['n'][0:8]=='tempplay':
                                     continue;
+                                ifFolder=True
                                 title='【%s】'%(item['n'])
                                 url='/files?'+parse.urlencode({'cid': item['cid'],'offset':0,'pageitem':pageitem,'cursorttype':cursorttype})
+                                sha1url='/sha1?'+parse.urlencode({'mode':'beginexportcid','cid': item['cid']})
                             if title:
                                 tds=[]
+                                tds.append(td(a(href=sha1url, target="_blank" ,class_='sha1')('导出SHA1'),class_='sha1td'))
                                 if locurl:
                                     tds.append(td(a(href=locurl,type=mimetype,class_='loc')('定位'),class_='loctd'))
                                 if isvideo:
@@ -1197,12 +1322,14 @@ class MyHandler(BaseHTTPRequestHandler):
                                     #m3ugizurl=('gizmovr://type=video&url=%s' % (m3url)).encode('latin-1')
                                     #xbmc.log(msg='requestedWith:'+requestedWith,level=xbmc.LOGERROR)
                                     tds.append( td(a(href=url,type=mimetype,class_='video')(title),class_='videotd'))
-                                    tds.append( td(a(href=playurl,class_='vid2')('原码HTML5播放')))
-                                    tds.append( td(a(href=m3uplayurl,class_='vid2')('转码HTML5播放')))
+                                    tds.append( td(a(href=playurl,class_='vid2')('原码HTML5')))
+                                    tds.append( td(a(href=m3uplayurl,class_='vid2')('转码HTML5')))
                                     #if requestedWith.lower().find('deovr')>=0:
                                     #tds.append( td(a(href=m3udeourl,class_='vid2')('DEO转码播放')))
                                     #else:
-                                    tds.append( td(a(href=m3url,type='application/x-mpegURL',class_='vid2')('转码直连播放')))
+                                    tds.append( td(a(href=m3url,type='application/x-mpegURL',class_='vid2')('转码直连')))
+                                elif ifFolder:
+                                    tds.append(td(a(href=url,type=mimetype,class_='folder')(title),colspan='4'))
                                 else:
                                     tds.append(td(a(href=url,type=mimetype)(title),colspan='4'))
                                 yield tr(tds)
@@ -1225,6 +1352,7 @@ class MyHandler(BaseHTTPRequestHandler):
                             #ul(paths),
                             table(tr(paths)),
                             searchcur,
+                            table(tr(sha1inout,sort)),
                             table(tr(sort)),
                             table(tr(filters,navpage)),
                             table(items),
@@ -1254,6 +1382,195 @@ class MyHandler(BaseHTTPRequestHandler):
                     s.send_header('Content-Length', len(htmlrender))
                     s.end_headers()
                     s.wfile.write(htmlrender)
+            elif request_path=='/sha1':
+                qs=parse.parse_qs(urlsp.query, keep_blank_values=True)
+                mode=str(qs.get('mode',[0])[0])
+                xl = api_115('0')
+                if mode=='beginimport':
+                    cid=str(qs.get('cid',[0])[0])
+                    data=xl.getfilelist(cid=cid,offset=0,pageitem=10,star='0',sorttype='user_ptime',sortasc='0')
+                    #xbmc.log(str(data),level=xbmc.LOGERROR)
+                    if data['state']:
+                        cidname=''
+                        if 'path' in data:
+                            if len(data['path'])>0:
+                                cidname=data['path'][-1]['name']
+                        if 'folder' in data:
+                            cidname=data['folder']['name']
+                        s.send_response(200)
+                        t = html(
+                                    head(
+                                        meta(charset='utf-8'),
+                                        title('115 SHA1'),
+                                        link(rel='stylesheet',href='/css/styles.css')
+                                    ),
+                                    body(
+                                            form(action='/sha1',method='GET')(
+                                                input_( type='hidden', name="cid",value=cid),
+                                                input_( type='hidden', name="mode",value='import'),
+                                                label('当前【%s】'%(cidname)),
+                                                textarea(rows='40', cols="60", name='sha1str')(''),
+                                                input_(class_='bigfont', type='submit', name="submit",value='导入SHA1'),
+                                                )
+                                    )
+                                )
+                        htmlrender=six.ensure_binary(t.render())
+                        s.send_header('Content-Length', len(htmlrender))
+                        s.end_headers()
+                        s.wfile.write(htmlrender)
+                if mode=='import':
+                    cid=str(qs.get('cid',[0])[0])
+                    cid=xl.createdir(cid,'sha-%s'%(datetime.now().strftime('%Y%m%d-%H%M%S')))
+                    sha1str=str(qs.get('sha1str',[0])[0])
+                    sha1str=parse.unquote_plus(sha1str)
+                    succ=fail=0
+                    subfolders={}
+                    def getsubfoldercid(cid,foldername):
+                        if foldername.strip()=='':
+                            return cid
+                        if foldername in subfolders:
+                            return subfolders[foldername]
+                        else:
+                            foldernamelast=foldername
+                            folders=foldername.split('|')
+                            if len(folders)>1:
+                                cid=getsubfoldercid(cid,'|'.join(folders[:-1]))
+                                foldernamelast=folders[-1]
+                            subfolders[foldername]=xl.createdir(cid,foldernamelast)
+                            return subfolders[foldername]
+                    failedlist = []
+                    for match in re.finditer(r'^\s*(?:115\x3A\x2f\x2f)?(?P<shalink>[^\r\n\x2F\x7C]+?[\x7C][0-9]+[\x7C][0-9a-fA-F]{40}[\x7C][0-9a-fA-F]{40})\x7C?(?P<folder>.*?)\s*$', sha1str, re.IGNORECASE | re.MULTILINE):
+                        shalink=match.group('shalink')
+                        linkpart=shalink.split('|')
+                        
+                        filename=linkpart[0]
+                        filesize=linkpart[1]
+                        fileid=linkpart[2]
+                        preid=linkpart[3].strip()
+                        subcid=getsubfoldercid(cid,match.group('folder'))
+                        #xbmc.log(msg=str(subfolders),level=xbmc.LOGERROR)
+                        
+                        if xl.import_file_with_sha1(preid,fileid,filesize,filename,subcid):
+                            succ+=1
+                        else:
+                            fail+=1
+                            failedlist.append(shalink)
+                    
+                    url='/files?'+parse.urlencode({'cid': cid,'offset':0,'pageitem':10,'cursorttype':0})
+                    
+                    s.send_response(200)
+                    t = html(
+                                head(
+                                    meta(charset='utf-8'),
+                                    title('115 SHA1'),
+                                    link(rel='stylesheet',href='/css/styles.css')
+                                ),
+                                body(
+                                    label('成功：%i  失败：%i'%(succ,fail)),
+                                    br(),
+                                    textarea()('\r\n'.join(failedlist)),
+                                    a(href=url,title='打开保存目录',class_='path')('打开保存目录'),
+                                )
+                            )
+                    htmlrender=six.ensure_binary(t.render())
+                    s.send_header('Content-Length', len(htmlrender))
+                    s.end_headers()
+                    s.wfile.write(htmlrender)
+                if mode=='exportfid':
+                    name=str(qs.get('name',[0])[0])
+                    length=str(qs.get('length',[0])[0])
+                    sha1=str(qs.get('sha1',[0])[0])
+                    pc=str(qs.get('pc',[0])[0])
+                    exportsha=xl.exportfid(name,length,sha1,pc)
+                    s.send_response(200)
+                    s.send_header('Content-Length', len(exportsha))
+                    s.send_header('Keep-Alive', 'timeout=5, max=100')
+                    s.send_header('Connection', 'Keep-Alive')
+                    s.send_header('Content-Type', 'text/plain; charset=UTF-8')
+                    s.end_headers()
+                    s.wfile.write(str.encode(exportsha))
+                if mode=='beginexportcid':
+                    maxcount=200
+                    warningcount=20
+                    cid=str(qs.get('cid',[0])[0])
+                    filescount=xl.countfiles(cid)
+                    if filescount>maxcount:
+                        s.send_response(200)
+                        t = html(
+                                head(
+                                    meta(charset='utf-8'),
+                                    title('Export '),
+                                    link(rel='stylesheet',href='/css/styles.css')
+                                ),
+                                body(
+                                    label('目录下文件数为%i,最高支持%i'%(filescount,maxcount)),
+                                    br(),
+                                    br(),
+                                    a(href='#',onClick='window.close();',class_='return')('关闭页面'),
+                                )
+                            )
+                        htmlrender=six.ensure_binary(t.render())
+                        s.send_header('Content-Length', len(htmlrender))
+                        s.end_headers()
+                        s.wfile.write(htmlrender)
+                    elif filescount>warningcount:
+                        url='/sha1?'+parse.urlencode({'mode':'exportcid','cid': cid})
+                        s.send_response(200)
+                        t = html(
+                                head(
+                                    meta(charset='utf-8'),
+                                    title('Export '),
+                                    link(rel='stylesheet',href='/css/styles.css')
+                                ),
+                                body(
+                                    label('目录下文件数为%i，将会耗费较长时间，是否继续？'%(filescount)),
+                                    br(),
+                                    a(href=url,title='继续导出',class_='path')('继续导出'),
+                                    br(),
+                                    br(),
+                                    a(href='#',onClick='window.close();',class_='return')('关闭页面'),
+                                )
+                            )
+                        htmlrender=six.ensure_binary(t.render())
+                        s.send_header('Content-Length', len(htmlrender))
+                        s.end_headers()
+                        s.wfile.write(htmlrender)
+                    else:
+                        url='/sha1?'+parse.urlencode({'mode':'exportcid','cid': cid})
+                        s.send_response(200)
+                        t = html(
+                                head(
+                                    meta(charset='utf-8'),
+                                    title('Export '),
+                                    link(rel='stylesheet',href='/css/styles.css')
+                                ),
+                                body(
+                                    label('目录下文件数为%i，是否继续？'%(filescount)),
+                                    br(),
+                                    a(href=url,title='继续导出',class_='path')('继续导出'),
+                                    br(),
+                                    br(),
+                                    a(href='#',onClick='window.close();',class_='return')('关闭页面'),
+                                )
+                            )
+                        htmlrender=six.ensure_binary(t.render())
+                        s.send_header('Content-Length', len(htmlrender))
+                        s.end_headers()
+                        s.wfile.write(htmlrender)
+                if mode=='exportcid':
+                    cid=str(qs.get('cid',[0])[0])
+                    pathdeep=xl.pathdeep(cid)
+                    outlist=[]
+                    xl.exportcid(outlist,cid,pathdeep)
+                    exportsha=str.encode('\r\n'.join(outlist))
+                    s.send_response(200)
+                    s.send_header('Content-Length', len(exportsha))
+                    s.send_header('Keep-Alive', 'timeout=5, max=100')
+                    s.send_header('Connection', 'Keep-Alive')
+                    s.send_header('Content-Type', 'text/plain; charset=UTF-8')
+                    s.end_headers()
+                    s.wfile.write(exportsha)
+                    
                     
             elif request_path=='/cookie':
                 qs=parse.parse_qs(urlsp.query, keep_blank_values=True)
@@ -1423,7 +1740,6 @@ class MyHandler(BaseHTTPRequestHandler):
         wheaders={}
         #wheaders={'Connection':'Keep-Alive','Keep-Alive':'timeout=20, max=100'}
         try:
-            
             response = s.urlopenwithRetry(req)
             #s.protocal_version ='HTTP/1.1'
             wcode=response.code
