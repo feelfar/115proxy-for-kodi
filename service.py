@@ -259,7 +259,40 @@ class api_115(object):
         except Exception as errno:
             xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
             return False
+    
+    def batchrename(self,namedict):
+        newnames={}
+        for key,value in namedict.items():
+            newnames['files_new_name[%s]'%key]=value
+        data = parse.urlencode(newnames)
+        try:
+            data=self.urlopen('https://webapi.115.com/files/batch_rename',data=data)
+            data= json.loads(data[data.index('{'):])
+            return data['state']
+        except Exception as errno:
+            xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
+            return False
             
+    def batchcidrename(self,cid,oldnewnames):
+        namedict={}
+        files=[]
+        self.getallfiles(cid,files)
+        for f in files:
+            if f['n'] in oldnewnames:
+                namedict[f['fid']]=oldnewnames[f['n']]
+        self.batchrename(namedict)
+        
+    def getallfiles(self,cid,files):
+        data=self.getfilelist(cid=cid,offset=0,pageitem=1150,star='0',sorttype='user_ptime',sortasc='0')
+        if 'data' in data:
+            resp = data['data']
+            for d in resp:
+                if 'fid' in d:
+                    files.append(d)
+                elif 'pid' in d:
+                    cid=d['cid']
+                    self.getallfiles(outlist,cid,files)
+                    
     def countfiles(self,cid):
         try:
             data=self.urlopen('https://webapi.115.com/category/get?cid=%s'%(cid))
@@ -1426,6 +1459,8 @@ class MyHandler(BaseHTTPRequestHandler):
                     succ=fail=0
                     subfolders={}
                     def getsubfoldercid(cid,foldername):
+                        if not type(foldername)==str:
+                            return cid
                         if foldername.strip()=='':
                             return cid
                         if foldername in subfolders:
@@ -1439,7 +1474,10 @@ class MyHandler(BaseHTTPRequestHandler):
                             subfolders[foldername]=xl.createdir(cid,foldernamelast)
                             return subfolders[foldername]
                     failedlist = []
-                    for match in re.finditer(r'^\s*(?:115\x3A\x2f\x2f)?(?P<shalink>[^\r\n\x2F\x7C]+?[\x7C][0-9]+[\x7C][0-9a-fA-F]{40}[\x7C][0-9a-fA-F]{40})\x7C?(?P<folder>.*?)\s*$', sha1str, re.IGNORECASE | re.MULTILINE):
+                    oldnewnames={}
+                    #for match in re.finditer(r'^\s*(?:115\x3A\x2f\x2f)?(?P<shalink>[^\r\n\x2F\x7C]+?[\x7C][0-9]+[\x7C][0-9a-fA-F]{40}[\x7C][0-9a-fA-F]{40})\x7C?(?P<folder>.*?)\s*$', sha1str, re.IGNORECASE | re.MULTILINE):
+                    for match in re.finditer(r'^\s*(?:115\x3A\x2f\x2f)?(?P<shalink>[^\r\n\x2F\x7C]+?[\x7C][0-9]+[\x7C][0-9a-fA-F]{40}[\x7C][0-9a-fA-F]{40})(\x7C(?P<folder>.+?)|\s+.*?|)$', sha1str, re.IGNORECASE | re.MULTILINE):
+                    
                         shalink=match.group('shalink')
                         linkpart=shalink.split('|')
                         
@@ -1450,12 +1488,13 @@ class MyHandler(BaseHTTPRequestHandler):
                         subcid=getsubfoldercid(cid,match.group('folder'))
                         #xbmc.log(msg=str(subfolders),level=xbmc.LOGERROR)
                         
-                        if xl.import_file_with_sha1(preid,fileid,filesize,filename,subcid):
+                        if xl.import_file_with_sha1(preid,fileid,filesize,fileid,subcid):
                             succ+=1
+                            oldnewnames[fileid]=filename
                         else:
                             fail+=1
                             failedlist.append(shalink)
-                    
+                    xl.batchcidrename(cid,oldnewnames)
                     url='/files?'+parse.urlencode({'cid': cid,'offset':0,'pageitem':10,'cursorttype':0})
                     
                     s.send_response(200)
