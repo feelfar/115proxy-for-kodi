@@ -1438,7 +1438,19 @@ class MyHandler(BaseHTTPRequestHandler):
                                         link(rel='stylesheet',href='/css/styles.css')
                                     ),
                                     body(
-                                            form(action='/sha1',method='GET')(
+                                            script(type='text/javascript')(r'''
+function filtershastr() {
+var content = document.getElementsByName("sha1str")[0].value.split('\n');
+result="";
+content.forEach(filter);
+function filter(value) {
+if(value.split('|').length>=4){
+result=result+value+'\n';}
+};
+document.getElementsByName("sha1str")[0].value=result;
+}
+'''),
+                                            form(name='myform',action='/sha1',method='GET', onsubmit='filtershastr()')(
                                                 input_( type='hidden', name="cid",value=cid),
                                                 input_( type='hidden', name="mode",value='import'),
                                                 label('当前【%s】'%(cidname)),
