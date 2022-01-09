@@ -47,6 +47,7 @@ import shutil
 from traceback import format_exc
 from lib.six.moves.socketserver import ThreadingMixIn
 from lib.six.moves.BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
+from cgi import parse_header, parse_multipart
 from Cryptodome import Random
 from Cryptodome.Hash import MD5
 from Cryptodome.Hash import SHA1
@@ -291,7 +292,7 @@ class api_115(object):
                     files.append(d)
                 elif 'pid' in d:
                     cid=d['cid']
-                    self.getallfiles(outlist,cid,files)
+                    self.getallfiles(cid,files)
                     
     def countfiles(self,cid):
         try:
@@ -799,8 +800,8 @@ class MyHandler(BaseHTTPRequestHandler):
             
     def handle_one_request(self):
         try:
-            self.raw_requestline = self.rfile.readline(65537)
-            if len(self.raw_requestline) > 65536:
+            self.raw_requestline = self.rfile.readline(65536*1024+1)
+            if len(self.raw_requestline) > 65536*1024:
                 self.requestline = ''
                 self.request_version = ''
                 self.command = ''
@@ -841,8 +842,25 @@ class MyHandler(BaseHTTPRequestHandler):
     def do_GET(s):
         xbmc.log( 'XBMCLocalProxy: Serving GET request...')
         s.answer_request(1)
+        
+    def parse_POST(s):
+        ctype, pdict = parse_header(s.headers['content-type'])
+        if ctype == 'multipart/form-data':
+            postvars = parse_multipart(s.rfile, pdict)
+        elif ctype == 'application/x-www-form-urlencoded':
+            length = int(s.headers['content-length'])
+            postvars = parse.parse_qs(
+                    s.rfile.read(length).decode ('utf-8'), 
+                    keep_blank_values=True)
+        else:
+            postvars = {}
+        return postvars
 
-    def answer_request(s, sendData):
+    def do_POST(s):
+        postvars = s.parse_POST()
+        s.answer_request(1,postvars)
+        
+    def answer_request(s, sendData,postvars={}):
         try:
             urlsp=parse.urlparse(s.path)
             scheme=urlsp.scheme
@@ -1450,9 +1468,8 @@ result=result+value+'\n';}
 document.getElementsByName("sha1str")[0].value=result;
 }
 '''),
-                                            form(name='myform',action='/sha1',method='GET', onsubmit='filtershastr()')(
+                                            form(name='myform',action='/sha1?mode=import',method='POST', onsubmit='filtershastr()')(
                                                 input_( type='hidden', name="cid",value=cid),
-                                                input_( type='hidden', name="mode",value='import'),
                                                 label('当前【%s】'%(cidname)),
                                                 textarea(rows='40', cols="60", name='sha1str')(''),
                                                 input_(class_='bigfont', type='submit', name="submit",value='导入SHA1'),
@@ -1464,16 +1481,23 @@ document.getElementsByName("sha1str")[0].value=result;
                         s.end_headers()
                         s.wfile.write(htmlrender)
                 if mode=='import':
-                    cid=str(qs.get('cid',[0])[0])
+                    #cid=str(qs.get('cid',[0])[0])
+                    cid=postvars['cid']
                     cid=xl.createdir(cid,'sha-%s'%(datetime.now().strftime('%Y%m%d-%H%M%S')))
-                    sha1str=str(qs.get('sha1str',[0])[0])
+                    #sha1str=str(qs.get('sha1str',[0])[0])
+                    #sha1str=str(postvars['sha1str'])
+                    sha1str=postvars['sha1str']
+                    sha1str='\n'.join(sha1str)
+                    
                     sha1str=parse.unquote_plus(sha1str)
+                    xbmc.log(sha1str,level=xbmc.LOGERROR)
                     succ=fail=0
                     subfolders={}
                     def getsubfoldercid(cid,foldername):
                         if not type(foldername)==str:
                             return cid
-                        if foldername.strip()=='':
+                        foldername = foldername.strip()
+                        if foldername == '':
                             return cid
                         if foldername in subfolders:
                             return subfolders[foldername]
@@ -1484,12 +1508,12 @@ document.getElementsByName("sha1str")[0].value=result;
                                 cid=getsubfoldercid(cid,'|'.join(folders[:-1]))
                                 foldernamelast=folders[-1]
                             subfolders[foldername]=xl.createdir(cid,foldernamelast)
+                            xbmc.log(msg='subfolders %s,%s,%s'%(foldername,foldernamelast,subfolders[foldername]),level=xbmc.LOGERROR)
                             return subfolders[foldername]
                     failedlist = []
                     oldnewnames={}
                     #for match in re.finditer(r'^\s*(?:115\x3A\x2f\x2f)?(?P<shalink>[^\r\n\x2F\x7C]+?[\x7C][0-9]+[\x7C][0-9a-fA-F]{40}[\x7C][0-9a-fA-F]{40})\x7C?(?P<folder>.*?)\s*$', sha1str, re.IGNORECASE | re.MULTILINE):
                     for match in re.finditer(r'(?:115\x3A\x2f\x2f|^)(?P<shalink>[^\r\n\x3A\x7C]+?[\x7C][0-9]+[\x7C][0-9a-fA-F]{40}[\x7C][0-9a-fA-F]{40})(\x7C(?P<folder>.+?)|\s+.*?|)$', sha1str, re.IGNORECASE | re.MULTILINE):
-                    
                         shalink=match.group('shalink')
                         linkpart=shalink.split('|')
                         
@@ -1497,6 +1521,7 @@ document.getElementsByName("sha1str")[0].value=result;
                         filesize=linkpart[1]
                         fileid=linkpart[2]
                         preid=linkpart[3].strip()
+                        
                         subcid=getsubfoldercid(cid,match.group('folder'))
                         #xbmc.log(msg=str(subfolders),level=xbmc.LOGERROR)
                         
