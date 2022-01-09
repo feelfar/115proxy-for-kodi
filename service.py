@@ -1488,7 +1488,7 @@ document.getElementsByName("sha1str")[0].value=result;
                     failedlist = []
                     oldnewnames={}
                     #for match in re.finditer(r'^\s*(?:115\x3A\x2f\x2f)?(?P<shalink>[^\r\n\x2F\x7C]+?[\x7C][0-9]+[\x7C][0-9a-fA-F]{40}[\x7C][0-9a-fA-F]{40})\x7C?(?P<folder>.*?)\s*$', sha1str, re.IGNORECASE | re.MULTILINE):
-                    for match in re.finditer(r'^\s*(?:115\x3A\x2f\x2f)?(?P<shalink>[^\r\n\x2F\x7C]+?[\x7C][0-9]+[\x7C][0-9a-fA-F]{40}[\x7C][0-9a-fA-F]{40})(\x7C(?P<folder>.+?)|\s+.*?|)$', sha1str, re.IGNORECASE | re.MULTILINE):
+                    for match in re.finditer(r'(?:115\x3A\x2f\x2f|^)(?P<shalink>[^\r\n\x3A\x7C]+?[\x7C][0-9]+[\x7C][0-9a-fA-F]{40}[\x7C][0-9a-fA-F]{40})(\x7C(?P<folder>.+?)|\s+.*?|)$', sha1str, re.IGNORECASE | re.MULTILINE):
                     
                         shalink=match.group('shalink')
                         linkpart=shalink.split('|')
