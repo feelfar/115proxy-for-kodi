@@ -1463,7 +1463,9 @@ result="";
 content.forEach(filter);
 function filter(value) {
 if(value.split('|').length>=4){
+if(value.text.substring(0, 5)!="ed2k:"){
 result=result+value+'\n';}
+}
 };
 document.getElementsByName("sha1str")[0].value=result;
 }
@@ -1490,7 +1492,7 @@ document.getElementsByName("sha1str")[0].value=result;
                     sha1str='\n'.join(sha1str)
                     
                     sha1str=parse.unquote_plus(sha1str)
-                    xbmc.log(sha1str,level=xbmc.LOGERROR)
+                    #xbmc.log(sha1str,level=xbmc.LOGERROR)
                     succ=fail=0
                     subfolders={}
                     def getsubfoldercid(cid,foldername):
@@ -1510,11 +1512,41 @@ document.getElementsByName("sha1str")[0].value=result;
                             subfolders[foldername]=xl.createdir(cid,foldernamelast)
                             xbmc.log(msg='subfolders %s,%s,%s'%(foldername,foldernamelast,subfolders[foldername]),level=xbmc.LOGERROR)
                             return subfolders[foldername]
+                    
+                    link115s=[]
+                    for match in re.finditer(r'(?:115\x3A\x2f\x2f|^)(?P<shalink>[^\r\n\x3A\x7C]+?[\x7C][0-9]+[\x7C][0-9a-fA-F]{40}[\x7C][0-9a-fA-F]{40})(?:\x7C(?P<folder>.+?$)|\s+.*?|)', sha1str, re.IGNORECASE | re.MULTILINE):
+                        link115s.append({'shalink':match.group('shalink'),'folder':match.group('folder')})
+                    maxcount=300
+                    if len(link115s)>maxcount:
+                        s.send_response(200)
+                        t = html(
+                                head(
+                                    meta(charset='utf-8'),
+                                    title('Import '),
+                                    link(rel='stylesheet',href='/css/styles.css')
+                                ),
+                                body(
+                                    label('链接数为%i,最高支持%i,可尝试分批导入'%(len(link115s),maxcount)),
+                                    br(),
+                                    br(),
+                                    label('如有大批量导入导出需求，建议使用'),
+                                    a(href='http://www.tampermonkey.net/',target="_blank",)('油猴'),
+                                    label('配合'),
+                                    a(href='https://gist.github.com/Nerver4Ever/953447c9ecd330ffc0861d4cbb839369/raw/29b609ce37cb58a9e568069cb569e442941ea99c/115%25E8%25BD%25AC%25E5%25AD%2598%25E5%258A%25A9%25E6%2589%258Bui%25E4%25BC%2598%25E5%258C%2596%25E7%2589%2588.user.js',target="_blank",)('115转存助手ui优化版'),
+                                    br(),
+                                    a(href='#',onClick='javascript:history.go(-1)',class_='return')('返回上一页'),
+                                )
+                            )
+                        htmlrender=six.ensure_binary(t.render())
+                        s.send_header('Content-Length', len(htmlrender))
+                        s.end_headers()
+                        s.wfile.write(htmlrender)
+                        return
+                    #for match in re.finditer(r'^\s*(?:115\x3A\x2f\x2f)?(?P<shalink>[^\r\n\x2F\x7C]+?[\x7C][0-9]+[\x7C][0-9a-fA-F]{40}[\x7C][0-9a-fA-F]{40})\x7C?(?P<folder>.*?)\s*$', sha1str, re.IGNORECASE | re.MULTILINE):
                     failedlist = []
                     oldnewnames={}
-                    #for match in re.finditer(r'^\s*(?:115\x3A\x2f\x2f)?(?P<shalink>[^\r\n\x2F\x7C]+?[\x7C][0-9]+[\x7C][0-9a-fA-F]{40}[\x7C][0-9a-fA-F]{40})\x7C?(?P<folder>.*?)\s*$', sha1str, re.IGNORECASE | re.MULTILINE):
-                    for match in re.finditer(r'(?:115\x3A\x2f\x2f|^)(?P<shalink>[^\r\n\x3A\x7C]+?[\x7C][0-9]+[\x7C][0-9a-fA-F]{40}[\x7C][0-9a-fA-F]{40})(?:\x7C(?P<folder>.+?$)|\s+.*?|)', sha1str, re.IGNORECASE | re.MULTILINE):
-                        shalink=match.group('shalink')
+                    for link115 in link115s:
+                        shalink=link115('shalink')
                         linkpart=shalink.split('|')
                         
                         filename=linkpart[0]
@@ -1522,7 +1554,7 @@ document.getElementsByName("sha1str")[0].value=result;
                         fileid=linkpart[2]
                         preid=linkpart[3].strip()
                         
-                        subcid=getsubfoldercid(cid,match.group('folder'))
+                        subcid=getsubfoldercid(cid,link115('folder'))
                         #xbmc.log(msg=str(subfolders),level=xbmc.LOGERROR)
                         
                         if xl.import_file_with_sha1(preid,fileid,filesize,fileid,subcid):
@@ -1581,6 +1613,11 @@ document.getElementsByName("sha1str")[0].value=result;
                                 body(
                                     label('目录下文件数为%i,最高支持%i'%(filescount,maxcount)),
                                     br(),
+                                    br(),
+                                    label('如有大批量导入导出需求，建议使用'),
+                                    a(href='http://www.tampermonkey.net/',target="_blank",)('油猴'),
+                                    label('配合'),
+                                    a(href='https://gist.github.com/Nerver4Ever/953447c9ecd330ffc0861d4cbb839369/raw/29b609ce37cb58a9e568069cb569e442941ea99c/115%25E8%25BD%25AC%25E5%25AD%2598%25E5%258A%25A9%25E6%2589%258Bui%25E4%25BC%2598%25E5%258C%2596%25E7%2589%2588.user.js',target="_blank",)('115转存助手ui优化版'),
                                     br(),
                                     a(href='#',onClick='window.close();',class_='return')('关闭页面'),
                                 )
@@ -1646,7 +1683,6 @@ document.getElementsByName("sha1str")[0].value=result;
                     s.send_header('Content-Type', 'text/plain; charset=UTF-8')
                     s.end_headers()
                     s.wfile.write(exportsha)
-                    
                     
             elif request_path=='/cookie':
                 qs=parse.parse_qs(urlsp.query, keep_blank_values=True)
@@ -1809,7 +1845,7 @@ document.getElementsByName("sha1str")[0].value=result;
         response=None
         #线程加塞
         s.fidSemaphores[fid].acquire()
-        xbmc.log('lockcount+1 sendData=%d bytes=%d-'%(sendData,rangeBegin),level=xbmc.LOGERROR)
+        #xbmc.log('lockcount+1 sendData=%d bytes=%d-'%(sendData,rangeBegin),level=xbmc.LOGERROR)
         err=False
         
         wcode=200
@@ -1838,12 +1874,12 @@ document.getElementsByName("sha1str")[0].value=result;
             mimetype, _ =mimetypes.guess_type(name.lower())
             if not mimetype:
                 mimetype='application/octet-stream'
-            xbmc.log(msg='zzzdebug:mimetype:%s'%(mimetype),level=xbmc.LOGERROR)
+            #xbmc.log(msg='zzzdebug:mimetype:%s'%(mimetype),level=xbmc.LOGERROR)
             wheaders['content-type']=mimetype
             
             
         except:
-            xbmc.log('lockcount-1 HEAD error',level=xbmc.LOGERROR)
+            #xbmc.log('lockcount-1 HEAD error',level=xbmc.LOGERROR)
             xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
             s.send_response(404)
             err=True
@@ -1851,7 +1887,7 @@ document.getElementsByName("sha1str")[0].value=result;
             response.close()
             #time.sleep(1)
             s.fidSemaphores[fid].release()
-            xbmc.log('lockcount-1 HEAD over err=%s'%str(err),level=xbmc.LOGERROR)
+            #xbmc.log('lockcount-1 HEAD over err=%s'%str(err),level=xbmc.LOGERROR)
             if sendData==0:
                 s.send_response(wcode)
                 for key in wheaders:
