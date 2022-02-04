@@ -1554,7 +1554,7 @@ document.getElementsByName("sha1str")[0].value=result;
                         fileid=linkpart[2]
                         preid=linkpart[3].strip()
                         
-                        subcid=getsubfoldercid(cid,link115('folder'))
+                        subcid=getsubfoldercid(cid,link115['folder'])
                         #xbmc.log(msg=str(subfolders),level=xbmc.LOGERROR)
                         
                         if xl.import_file_with_sha1(preid,fileid,filesize,fileid,subcid):
