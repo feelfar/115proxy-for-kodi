@@ -1546,7 +1546,7 @@ document.getElementsByName("sha1str")[0].value=result;
                     failedlist = []
                     oldnewnames={}
                     for link115 in link115s:
-                        shalink=link115('shalink')
+                        shalink=link115['shalink']
                         linkpart=shalink.split('|')
                         
                         filename=linkpart[0]
