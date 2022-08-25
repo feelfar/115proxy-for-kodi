@@ -1545,6 +1545,7 @@ document.getElementsByName("sha1str")[0].value=result;
                     #for match in re.finditer(r'^\s*(?:115\x3A\x2f\x2f)?(?P<shalink>[^\r\n\x2F\x7C]+?[\x7C][0-9]+[\x7C][0-9a-fA-F]{40}[\x7C][0-9a-fA-F]{40})\x7C?(?P<folder>.*?)\s*$', sha1str, re.IGNORECASE | re.MULTILINE):
                     failedlist = []
                     oldnewnames={}
+                    tempnameindex=0
                     for link115 in link115s:
                         shalink=link115['shalink']
                         linkpart=shalink.split('|')
@@ -1553,13 +1554,14 @@ document.getElementsByName("sha1str")[0].value=result;
                         filesize=linkpart[1]
                         fileid=linkpart[2]
                         preid=linkpart[3].strip()
-                        
+                        tempnameindex=tempnameindex+1
+                        tempname="{0}{1}".format(tempnameindex,filename[filename.rfind('.'):].lower())
                         subcid=getsubfoldercid(cid,link115['folder'])
-                        #xbmc.log(msg=str(subfolders),level=xbmc.LOGERROR)
+                        #xbmc.log(msg="{0}||||{1}".format(filename,tempname),level=xbmc.LOGERROR)
                         
-                        if xl.import_file_with_sha1(preid,fileid,filesize,fileid,subcid):
+                        if xl.import_file_with_sha1(preid,fileid,filesize,tempname,subcid):
                             succ+=1
-                            oldnewnames[fileid]=filename
+                            oldnewnames[tempname]=filename
                         else:
                             fail+=1
                             failedlist.append(shalink)
