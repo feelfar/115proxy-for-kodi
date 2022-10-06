@@ -59,7 +59,7 @@ __lib__  = xbmc.translatePath( os.path.join( __cwd__, 'lib' ) )
 sys.path.append (__lib__)
 
 from pyhtml import *
-
+defaultUserAgent='Mozilla/5.0;  Mac  OS  X/10.15.7;  115Desktop/2.0.1.7'
 
 _cookiestr=''
 
@@ -119,8 +119,8 @@ class api_115(object):
             cookstr=_cookiestr
             #xbmc.log(cookstr,level=xbmc.LOGERROR)
         self.headers = {
-            #'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.109 Safari/537.36',
-            'User-Agent': 'Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 6.2; Trident/6.0)',
+            
+            'User-Agent': defaultUserAgent,
             'Accept-encoding': 'gzip,deflate',
             'Cookie': cookstr,
         }
@@ -341,7 +341,7 @@ class api_115(object):
             filedownloadurl,downcookie=file_url.split('|')
 
             reqheaders={}
-            reqheaders['User-Agent']='Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 6.2; Trident/6.0)'
+            reqheaders['User-Agent']=defaultUserAgent
             reqheaders['Referer']='https://115.com/?cid=0&offset=0&mode=wangpan'
             reqheaders['Cookie']=self.headers['Cookie']+downcookie+';'
             reqheaders['Range']='bytes=0-131071';
@@ -362,19 +362,37 @@ class api_115(object):
             xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
             return ''
         
-    def import_file_with_sha1(self,preid,fileid,filesize,filename,cid):
+    def import_file_with_sha1(self,preid,fileid,filesize,filename,cid,tm):
         target='U_1_'+str(cid)
-        tm=int(time.time())
+        #tm=str(int(time.time()))+'000'
+        #tm='16649927390000'
+        xbmc.log(msg="tm:"+tm,level=xbmc.LOGERROR)
+        
         sha=SHA1.new()
         sha.update( str.encode(self.user_id+fileid+ fileid +target+'0'))
         s1 = sha.hexdigest()
+        xbmc.log(msg="s1:"+s1,level=xbmc.LOGERROR)
         s2=self.user_key+s1+"000000"
+        
         sha=SHA1.new()
         sha.update(str.encode(s2))
         sig=sha.hexdigest().upper()
+        xbmc.log(msg="sig:"+sig,level=xbmc.LOGERROR)
         
-        url=("http://uplb.115.com/3.0/initupload.php?isp=0&appid=0&appversion=25.2.0&format=json&sig=%s")%(sig)
-        postData=('preid=%s&fileid=%s&quickid=%s&app_ver=25.2.0&filename=%s&filesize=%s&exif=&target=%s&userid=%s')%(preid,fileid,fileid,filename,filesize,target,self.user_id)
+        useridmd5 = MD5.new()
+        useridmd5.update(self.user_id.encode())
+        struidmd5=useridmd5.hexdigest()
+        xbmc.log(msg="useridmd5:"+struidmd5,level=xbmc.LOGERROR)
+        
+        tokenmd5 = MD5.new()
+        appVersion = "2.0.1.7"
+        tokenstr = "Qclm8MGWUv59TnrR0XPg" +fileid +str(filesize)+ preid + self.user_id + tm + struidmd5 +appVersion;
+        tokenmd5.update(tokenstr.encode())
+        token=tokenmd5.hexdigest()
+        xbmc.log(msg="token:"+token,level=xbmc.LOGERROR)
+        
+        url=("http://uplb.115.com/3.0/initupload.php?rt=0&topupload=0&isp=0&appid=0&appversion=%s&format=json&sig=%s&token=%s&t=%s")%(appVersion,sig,token,tm)
+        postData=('preid=%s&fileid=%s&quickid=%s&app_ver=%s&filename=%s&filesize=%s&exif=&target=%s&userid=%s')%(preid,fileid,fileid,appVersion,filename,filesize,target,self.user_id)
         try:
             data=self.urlopen(url,data=postData)
             data= json.loads(data[data.index('{'):])
@@ -1486,7 +1504,8 @@ document.getElementsByName("sha1str")[0].value=result;
                         s.wfile.write(htmlrender)
                 if mode=='import':
                     #cid=str(qs.get('cid',[0])[0])
-                    cid=postvars['cid']
+                    cid=postvars['cid'][0]
+                    xbmc.log("rootcid"+cid,level=xbmc.LOGERROR)
                     cid=xl.createdir(cid,'sha-%s'%(datetime.now().strftime('%Y%m%d-%H%M%S')))
                     #sha1str=str(qs.get('sha1str',[0])[0])
                     #sha1str=str(postvars['sha1str'])
@@ -1560,8 +1579,8 @@ document.getElementsByName("sha1str")[0].value=result;
                         tempname="{0}{1}".format(tempnameindex,filename[filename.rfind('.'):].lower())
                         subcid=getsubfoldercid(cid,link115['folder'])
                         #xbmc.log(msg="{0}||||{1}".format(filename,tempname),level=xbmc.LOGERROR)
-                        
-                        if xl.import_file_with_sha1(preid,fileid,filesize,tempname,subcid):
+                        tm=str(int(time.time()))+'000'
+                        if xl.import_file_with_sha1(preid,fileid,filesize,tempname,subcid,tm):
                             succ+=1
                             oldnewnames[tempname]=filename
                         else:
@@ -1834,10 +1853,8 @@ document.getElementsByName("sha1str")[0].value=result;
             if key.lower()=='range':
                 strRange=s.headers[key]
                 rangeBegin=int(strRange[strRange.index('=')+1:strRange.index('-')])
-        #request.add_header('User-Agent','Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 6.2; Trident/6.0)')
-        #request.add_header('Referer', 'https://115.com/?cid=0&offset=0&mode=wangpan')
-        #request.add_header('Cookie',cookiestr+downcookie+';')
-        reqheaders['User-Agent']='Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 6.2; Trident/6.0)'
+
+        reqheaders['User-Agent']=defaultUserAgent
         reqheaders['Referer']='https://115.com/?cid=0&offset=0&mode=wangpan'
         if cookiestr=='0': cookiestr=''
         reqheaders['Cookie']=cookiestr+downcookie+';'
@@ -2001,49 +2018,50 @@ def loadcookiefile(cformat='simple'):
                 if cookie.name.upper()=='SEID': seid=cookie.value
                 if cookie.name.upper()=='UID': uid=cookie.value
         if cformat.lower()=='json':
-            cstr='''
-[
-{
-    "domain": "115.com",
-    "hostOnly": false,
-    "httpOnly": true,
-    "name": "CID",
-    "path": "/",
-    "sameSite": "no_restriction",
-    "secure": false,
-    "session": true,
-    "storeId": "0",
-    "value": "%s",
-    "id": 1
-},
-{
-    "domain": "115.com",
-    "hostOnly": false,
-    "httpOnly": true,
-    "name": "SEID",
-    "path": "/",
-    "sameSite": "no_restriction",
-    "secure": false,
-    "session": true,
-    "storeId": "0",
-    "value": "%s",
-    "id": 2
-},
-{
-    "domain": "115.com",
-    "hostOnly": false,
-    "httpOnly": true,
-    "name": "UID",
-    "path": "/",
-    "sameSite": "no_restriction",
-    "secure": false,
-    "session": true,
-    "storeId": "0",
-    "value": "%s",
-    "id": 3
-}
-]
-'''%(cid,seid,uid)
+            cookiejson=[{
+                            "domain": "115.com",
+                            "hostOnly": False,
+                            "httpOnly": True,
+                            "path": "/",
+                            "sameSite": "lax",
+                            "firstPartyDomain": "",
+                            "partitionKey": None,
+                            "secure": False,
+                            "session": True,
+                            "name": "CID",
+                            "value": cid,
+                            "id": 1
+                        },
+                        {
+                            "domain": "115.com",
+                            "hostOnly": False,
+                            "httpOnly": True,
+                            "path": "/",
+                            "sameSite": "lax",
+                            "firstPartyDomain": "",
+                            "partitionKey": None,
+                            "secure": False,
+                            "session": True,
+                            "name": "SEID",
+                            "value": seid,
+                            "id": 2
+                        },
+                        {
+                            "domain": "115.com",
+                            "hostOnly": False,
+                            "httpOnly": True,
+                            "path": "/",
+                            "sameSite": "lax",
+                            "firstPartyDomain": "",
+                            "partitionKey": None,
+                            "secure": False,
+                            "session": True,
+                            "name": "UID",
+                            "value": uid,
+                            "id": 3
+                        }]
+            cstr=json.dumps(cookiejson,indent=4)
+
         elif cformat.lower()=='lwp':
             cstr='''#LWP-Cookies-2.0
 Set-Cookie3: CID=%s; path="/"; domain="115.com"; path_spec; domain_dot; discard; HttpOnly=None; version=0
