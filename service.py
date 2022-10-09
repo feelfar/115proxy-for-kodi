@@ -1864,15 +1864,17 @@ document.getElementsByName("sha1str")[0].value=result;
         if sendData==0:
             req.get_method = lambda : 'HEAD'
         response=None
-        #线程加塞
-        s.fidSemaphores[fid].acquire()
+        
         #xbmc.log('lockcount+1 sendData=%d bytes=%d-'%(sendData,rangeBegin),level=xbmc.LOGERROR)
         err=False
         
         wcode=200
         wheaders={}
+        sendheadover=False
         #wheaders={'Connection':'Keep-Alive','Keep-Alive':'timeout=20, max=100'}
         try:
+            #线程加塞
+            s.fidSemaphores[fid].acquire()
             response = s.urlopenwithRetry(req)
             #s.protocal_version ='HTTP/1.1'
             wcode=response.code
@@ -1895,30 +1897,30 @@ document.getElementsByName("sha1str")[0].value=result;
             mimetype, _ =mimetypes.guess_type(name.lower())
             if not mimetype:
                 mimetype='application/octet-stream'
-            #xbmc.log(msg='zzzdebug:mimetype:%s'%(mimetype),level=xbmc.LOGERROR)
+            xbmc.log(msg='zzzdebug:mimetype:%s'%(mimetype),level=xbmc.LOGERROR)
             wheaders['content-type']=mimetype
             
             
         except:
-            #xbmc.log('lockcount-1 HEAD error',level=xbmc.LOGERROR)
+            xbmc.log('Open HEAD error',level=xbmc.LOGERROR)
             xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
             s.send_response(404)
             err=True
         finally:
-            response.close()
-            #time.sleep(1)
-            s.fidSemaphores[fid].release()
             #xbmc.log('lockcount-1 HEAD over err=%s'%str(err),level=xbmc.LOGERROR)
+            response.close()
+            s.fidSemaphores[fid].release()
             if sendData==0:
                 s.send_response(wcode)
                 for key in wheaders:
                     s.send_header(key,wheaders[key])
                 s.end_headers()
+                sendheadover=True
             if err or sendData==0:
                 return
 
         xbmc.log('rangeBegin=%d,s.fileSize[fid]=%d'%(rangeBegin,s.fileSize[fid]),level=xbmc.LOGERROR)
-        sendheadover=False
+        
         while rangeBegin<s.fileSize[fid]:
             #改变获取范围的结束位置
             rangeEnd=rangeBegin+s.blockSize-1
@@ -1960,9 +1962,7 @@ document.getElementsByName("sha1str")[0].value=result;
             except:
                 xbmc.log('lockcount-1 getandsendData error bytes=%d-%d'%(rangeBegin,rangeEnd),level=xbmc.LOGERROR)
                 xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
-                
                 err=True
-                #s.send_response(404)
             
             finally:
                 response.close()
