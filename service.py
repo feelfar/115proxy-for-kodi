@@ -749,10 +749,10 @@ class api_115(object):
             jsondata = json.loads(bdecode.decode())
             jsondata=jsondata[list(jsondata.keys())[0]]
             if 'url' in jsondata:
-                result = jsondata['url']['url']
+                result = jsondata['url']['url']+'|'+self.downcookie
                 self.notesavecontent(cname='pickcodeurl',notetitle=pc,content=result)
         #xbmc.log('url_return '+result,level=xbmc.LOGERROR)
-        return result+'|'+self.downcookie
+        return result
 
     def oldgetfiledownloadurl(self,pc):
         bad_server = ''
@@ -1836,6 +1836,13 @@ document.getElementsByName("sha1str")[0].value=result;
             return
         filedownloadurl,downcookie=fidUrl.split('|')
         #xbmc.log('filedownloadurl=%s downcookie=%s'%(filedownloadurl,downcookie),level=xbmc.LOGERROR)
+        # if str(xbmcaddon.Addon().getSetting('direct'))=='true':
+            # s.send_response(301)
+            
+            # s.send_header('Location', filedownloadurl)
+            # s.end_headers()
+
+            # return
         if not fid in s.fileSize:
             s.fileSize[fid]=-1
         if not fid in  s.fidSemaphores:
@@ -1870,7 +1877,6 @@ document.getElementsByName("sha1str")[0].value=result;
         
         wcode=200
         wheaders={}
-        sendheadover=False
         #wheaders={'Connection':'Keep-Alive','Keep-Alive':'timeout=20, max=100'}
         try:
             #线程加塞
@@ -1910,12 +1916,12 @@ document.getElementsByName("sha1str")[0].value=result;
             #xbmc.log('lockcount-1 HEAD over err=%s'%str(err),level=xbmc.LOGERROR)
             response.close()
             s.fidSemaphores[fid].release()
-            if sendData==0:
-                s.send_response(wcode)
-                for key in wheaders:
-                    s.send_header(key,wheaders[key])
-                s.end_headers()
-                sendheadover=True
+            
+            s.send_response(wcode)
+            for key in wheaders:
+                s.send_header(key,wheaders[key])
+            s.end_headers()
+            
             if err or sendData==0:
                 return
 
@@ -1934,12 +1940,7 @@ document.getElementsByName("sha1str")[0].value=result;
             err=False
             try:
                 response = s.urlopenwithRetry(req)
-                if not sendheadover:
-                    s.send_response(wcode)
-                    for key in wheaders:
-                        s.send_header(key,wheaders[key])
-                    s.end_headers()
-                    sendheadover=True
+                
                 fileout=s.wfile
                 shutil.copyfileobj(response,fileout)
                 '''
@@ -1981,6 +1982,9 @@ document.getElementsByName("sha1str")[0].value=result;
 
 
 class Server(HTTPServer):
+    if socket.has_dualstack_ipv6() and str(xbmcaddon.Addon().getSetting('ipv6'))=='true':
+        address_family = socket.AF_INET6
+    
     '''HTTPServer class with timeout.'''
     def get_request(self):
         '''Get the request and client address from the socket.'''
@@ -2001,7 +2005,8 @@ class Server(HTTPServer):
 
 class ThreadedHTTPServer(ThreadingMixIn, Server):
     '''Handle requests in a separate thread.'''
-HOST_NAME = '0.0.0.0'
+    
+HOST_NAME = ''
 PORT_NUMBER =  int(xbmcaddon.Addon().getSetting('listen_port'))
 
 def loadcookiefile(cformat='simple'):
@@ -2028,6 +2033,7 @@ def loadcookiefile(cformat='simple'):
                             "partitionKey": None,
                             "secure": False,
                             "session": True,
+                            "isProtected":True,
                             "name": "CID",
                             "value": cid,
                             "id": 1
@@ -2042,6 +2048,7 @@ def loadcookiefile(cformat='simple'):
                             "partitionKey": None,
                             "secure": False,
                             "session": True,
+                            "isProtected":True,
                             "name": "SEID",
                             "value": seid,
                             "id": 2
@@ -2056,6 +2063,7 @@ def loadcookiefile(cformat='simple'):
                             "partitionKey": None,
                             "secure": False,
                             "session": True,
+                            "isProtected":True,
                             "name": "UID",
                             "value": uid,
                             "id": 3
