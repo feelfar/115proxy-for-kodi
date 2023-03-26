@@ -19,13 +19,13 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 MA 02110-1301, USA.
 '''
 from  __future__  import unicode_literals
+import io
 import sys
-import lib.six as six
-from lib.six.moves.urllib import parse
-from lib.six.moves.urllib import request
-from lib.six.moves.urllib import response 
-from lib.six.moves import http_cookiejar as cookielib
-from lib.six.moves import html_entities as htmlentitydefs
+from urllib import parse
+from urllib import request
+from urllib import response 
+import http.cookiejar as cookielib
+import html.entities as htmlentitydefs
 from datetime import datetime
 import base64
 import uuid
@@ -43,10 +43,10 @@ from threading import Semaphore
 import os
 import mimetypes
 import shutil
-#import ssl
+import lib.comm as comm
 from traceback import format_exc
-from lib.six.moves.socketserver import ThreadingMixIn
-from lib.six.moves.BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
+from socketserver import ThreadingMixIn
+from http.server import HTTPServer, BaseHTTPRequestHandler
 from cgi import parse_header, parse_multipart
 from Cryptodome import Random
 from Cryptodome.Hash import MD5
@@ -76,8 +76,8 @@ def encode_obj(in_obj):
             out_dict[k] = encode_obj(v)
         return out_dict
 
-    if isinstance(in_obj, six.text_type):
-        return six.ensure_binary(in_obj)
+    if isinstance(in_obj, str):
+        return comm.ensure_binary(in_obj)
     elif isinstance(in_obj, list):
         return encode_list(in_obj)
     elif isinstance(in_obj, tuple):
@@ -146,11 +146,11 @@ class api_115(object):
                     rsp = opener.open(req, timeout=15)
                 
                 if rsp.info().get('Content-Encoding') == 'gzip':
-                    reponse = gzip.GzipFile(fileobj=six.BytesIO(rsp.read())).read()
+                    reponse = gzip.GzipFile(fileobj=io.BytesIO(rsp.read())).read()
                 else:
                     reponse = rsp.read()
                 if not binary:
-                    reponse=six.ensure_text(reponse)
+                    reponse=comm.ensure_text(reponse)
                 #xbmc.log(msg=str(rsp.headers),level=xbmc.LOGERROR)
                 self.downcookie=''
                 for key,value in rsp.headers.items():
@@ -338,12 +338,17 @@ class api_115(object):
     def get_preid(self,pc):
         try:
             file_url=self.getfiledownloadurl(pc)
-            filedownloadurl,downcookie=file_url.split('|')
+            xbmc.log(msg='file_url:'+file_url,level=xbmc.LOGERROR)
+            filedownloadurl=downcookie=''
+            if file_url.find('|')>0:
+                filedownloadurl,downcookie=file_url.split('|')
+            else:
+                filedownloadurle=file_url
 
             reqheaders={}
             reqheaders['User-Agent']=defaultUserAgent
             reqheaders['Referer']='https://115.com/?cid=0&offset=0&mode=wangpan'
-            reqheaders['Cookie']=self.headers['Cookie']+downcookie+';'
+            reqheaders['Cookie']=self.headers['Cookie']+';'+downcookie+';'
             reqheaders['Range']='bytes=0-131071';
             req = request.Request(filedownloadurl, headers=reqheaders)
             response=None
@@ -351,7 +356,7 @@ class api_115(object):
             opener = request.build_opener(SmartRedirectHandler)
             rsp = opener.open(req, timeout=15)
             if rsp.info().get('Content-Encoding') == 'gzip':
-                reponse = gzip.GzipFile(fileobj=six.BytesIO(rsp.read())).read()
+                reponse = gzip.GzipFile(fileobj=io.BytesIO(rsp.read())).read()
             else:
                 reponse = rsp.read()
             sha = SHA1.new()
@@ -385,7 +390,7 @@ class api_115(object):
         xbmc.log(msg="useridmd5:"+struidmd5,level=xbmc.LOGERROR)
         
         tokenmd5 = MD5.new()
-        appVersion = "2.0.1.7"
+        appVersion = "25.2.0"
         tokenstr = "Qclm8MGWUv59TnrR0XPg" +fileid +str(filesize)+ preid + self.user_id + tm + struidmd5 +appVersion;
         tokenmd5.update(tokenstr.encode())
         token=tokenmd5.hexdigest()
@@ -734,9 +739,7 @@ class api_115(object):
         if not result:
             content=self.notegetpcurl(pc=pc)
             if content:
-                if self.url_is_alive(content):
-                    #xbmc.log('url_is_alive '+content,level=xbmc.LOGERROR)
-                    result=content
+                result=content
         if not result:
             pcencode = self.m115_encode((json.dumps({'pickcode': pc})).replace(' ',''),tm)
             data=self.urlopen('http://proapi.115.com/app/chrome/downurl?t='+tm,data=parse.urlencode({'data':pcencode['data']}))
@@ -907,7 +910,7 @@ class MyHandler(BaseHTTPRequestHandler):
                     )
                 )
 
-                s.wfile.write( six.ensure_binary(t.render()))
+                s.wfile.write( comm.ensure_binary(t.render()))
                 
             elif request_path[0:4]=='/djs':
                 try:
@@ -1071,7 +1074,7 @@ class MyHandler(BaseHTTPRequestHandler):
                         s.send_header('Content-type', 'application/x-mpegURL')
                         s.send_header('Content-Length', len(extm3u))
                         s.end_headers()
-                        s.wfile.write(six.ensure_binary(extm3u))
+                        s.wfile.write(comm.ensure_binary(extm3u))
                     else:
                         xl = api_115('0')
                         data = parse.urlencode({'op': 'vip_push','pickcode':pc,'sha1':sha})
@@ -1085,7 +1088,7 @@ class MyHandler(BaseHTTPRequestHandler):
                             ),
                             body('当前文件未转码，请尝试原码播放')
                             )
-                        htmlrender=six.ensure_binary(t.render())
+                        htmlrender=comm.ensure_binary(t.render())
                         s.send_header('Content-Length', len(htmlrender))
                         s.end_headers()
                         s.wfile.write(htmlrender)
@@ -1152,7 +1155,7 @@ class MyHandler(BaseHTTPRequestHandler):
                         # )
                     # )
                     # s.wfile.write(t.render())
-                    playhtml=six.ensure_binary(playhtml)
+                    playhtml=comm.ensure_binary(playhtml)
                     s.send_header('Content-Length', len(playhtml))
                     s.end_headers()
                     s.wfile.write(playhtml)
@@ -1332,7 +1335,7 @@ class MyHandler(BaseHTTPRequestHandler):
                                     locurl='/files?'+parse.urlencode({'cid':item['cid'],'offset':0,'pageitem':pageitem,'typefilter':typefilter,'cursorttype':0,'searchvalue':''})
                                 title=item['n']
                                 mimetype, _ =mimetypes.guess_type('a.'+item['ico'].lower())
-                                url='%s://%s/115/%s/%s/%s/%s' % (s.request_version.split('/')[0],s.headers.get('Host'),item['fid'],'0','0',parse.quote_plus(six.ensure_binary(title)))
+                                url='%s://%s/115/%s/%s/%s/%s' % (s.request_version.split('/')[0],s.headers.get('Host'),item['fid'],'0','0',parse.quote_plus(comm.ensure_binary(title)))
                                 sha1url='/sha1?'+parse.urlencode({'mode':'exportfid','name': item['n'],'length': item['s'],'sha1': item['sha'],'pc': item['pc']})
                                 #if item['ico'].lower() in ['mp4', 'wmv', 'avi', 'mkv', 'mpg','ts','vob','m4v','mov','flv','rmvb']:
                                 if 'iv' in item:
@@ -1366,7 +1369,7 @@ class MyHandler(BaseHTTPRequestHandler):
                                 sha1url='/sha1?'+parse.urlencode({'mode':'beginexportcid','cid': item['cid']})
                             if title:
                                 tds=[]
-                                tds.append(td(a(href=sha1url, target="_blank" ,class_='sha1')('导出SHA1'),class_='sha1td'))
+                                # tds.append(td(a(href=sha1url, target="_blank" ,class_='sha1')('导出SHA1'),class_='sha1td'))
                                 if locurl:
                                     tds.append(td(a(href=locurl,type=mimetype,class_='loc')('定位'),class_='loctd'))
                                 if isvideo:
@@ -1374,20 +1377,20 @@ class MyHandler(BaseHTTPRequestHandler):
                                     # yield li(a(href=url,title=title)(title))
                                     #yield li(a(href=url,type=mimetype)(title),class_='video')
                                     playurl='/play?'+parse.urlencode(encode_obj({'url': url,'title':item['n']+'.m3u8','mimetype':mimetype,'cid':item['cid'],'pc':item['pc']}))
-                                    m3url=('/m3u/%s/%s/%s.m3u8' % (item['pc'],item['sha'],parse.quote_plus(six.ensure_binary(title))))
+                                    m3url=('/m3u/%s/%s/%s.m3u8' % (item['pc'],item['sha'],parse.quote_plus(comm.ensure_binary(title))))
                                     m3url=('%s://%s/m3u/%s/%s/%s.m3u8' % (s.request_version.split('/')[0],
                                                             s.headers.get('Host'),
-                                                            item['pc'],item['sha'],parse.quote_plus(six.ensure_binary(title))))
+                                                            item['pc'],item['sha'],parse.quote_plus(comm.ensure_binary(title))))
                                     m3uplayurl='/play?'+parse.urlencode(encode_obj({'url': m3url,'title':title+'.m3u8','mimetype':'application/x-mpegURL','cid':item['cid'],'pc':item['pc']}))
                                     deourl=('deovr://%s://%s/djs/%s/%s.json' % (s.request_version.split('/')[0],
                                                             s.headers.get('Host'),
                                                             parse.quote_plus(url),
-                                                            parse.quote_plus(six.ensure_binary(title)),
+                                                            parse.quote_plus(comm.ensure_binary(title)),
                                                             ))
                                     m3udeourl=('deovr://%s://%s/djs/%s/%s.json' % (s.request_version.split('/')[0],
                                                             s.headers.get('Host'),
                                                             parse.quote_plus(m3url),
-                                                            parse.quote_plus(six.ensure_binary(title)),
+                                                            parse.quote_plus(comm.ensure_binary(title)),
                                                             ))
                                     #gizurl=('gizmovr://type=video&url=%s' % (url))
                                     #m3ugizurl=('gizmovr://type=video&url=%s' % (m3url)).encode('latin-1')
@@ -1423,13 +1426,13 @@ class MyHandler(BaseHTTPRequestHandler):
                             #ul(paths),
                             table(tr(paths)),
                             searchcur,
-                            table(tr(sha1inout,sort)),
+                            #table(tr(sha1inout,sort)),
                             table(tr(sort)),
                             table(tr(filters,navpage)),
                             table(items),
                         )
                     )
-                    htmlrender=six.ensure_binary(t.render())
+                    htmlrender=comm.ensure_binary(t.render())
                     s.send_header('Content-Length', len(htmlrender))
                     s.end_headers()
                     s.wfile.write(htmlrender)
@@ -1449,7 +1452,7 @@ class MyHandler(BaseHTTPRequestHandler):
                                 '并重新启动KODI',
                         )
                     )
-                    htmlrender=six.ensure_binary(t.render())
+                    htmlrender=comm.ensure_binary(t.render())
                     s.send_header('Content-Length', len(htmlrender))
                     s.end_headers()
                     s.wfile.write(htmlrender)
@@ -1498,7 +1501,7 @@ document.getElementsByName("sha1str")[0].value=result;
                                                 )
                                     )
                                 )
-                        htmlrender=six.ensure_binary(t.render())
+                        htmlrender=comm.ensure_binary(t.render())
                         s.send_header('Content-Length', len(htmlrender))
                         s.end_headers()
                         s.wfile.write(htmlrender)
@@ -1558,7 +1561,7 @@ document.getElementsByName("sha1str")[0].value=result;
                                     a(href='#',onClick='javascript:history.go(-1)',class_='return')('返回上一页'),
                                 )
                             )
-                        htmlrender=six.ensure_binary(t.render())
+                        htmlrender=comm.ensure_binary(t.render())
                         s.send_header('Content-Length', len(htmlrender))
                         s.end_headers()
                         s.wfile.write(htmlrender)
@@ -1603,7 +1606,7 @@ document.getElementsByName("sha1str")[0].value=result;
                                     a(href=url,title='打开保存目录',class_='path')('打开保存目录'),
                                 )
                             )
-                    htmlrender=six.ensure_binary(t.render())
+                    htmlrender=comm.ensure_binary(t.render())
                     s.send_header('Content-Length', len(htmlrender))
                     s.end_headers()
                     s.wfile.write(htmlrender)
@@ -1645,7 +1648,7 @@ document.getElementsByName("sha1str")[0].value=result;
                                     a(href='#',onClick='window.close();',class_='return')('关闭页面'),
                                 )
                             )
-                        htmlrender=six.ensure_binary(t.render())
+                        htmlrender=comm.ensure_binary(t.render())
                         s.send_header('Content-Length', len(htmlrender))
                         s.end_headers()
                         s.wfile.write(htmlrender)
@@ -1667,7 +1670,7 @@ document.getElementsByName("sha1str")[0].value=result;
                                     a(href='#',onClick='window.close();',class_='return')('关闭页面'),
                                 )
                             )
-                        htmlrender=six.ensure_binary(t.render())
+                        htmlrender=comm.ensure_binary(t.render())
                         s.send_header('Content-Length', len(htmlrender))
                         s.end_headers()
                         s.wfile.write(htmlrender)
@@ -1689,7 +1692,7 @@ document.getElementsByName("sha1str")[0].value=result;
                                     a(href='#',onClick='window.close();',class_='return')('关闭页面'),
                                 )
                             )
-                        htmlrender=six.ensure_binary(t.render())
+                        htmlrender=comm.ensure_binary(t.render())
                         s.send_header('Content-Length', len(htmlrender))
                         s.end_headers()
                         s.wfile.write(htmlrender)
@@ -1747,7 +1750,7 @@ document.getElementsByName("sha1str")[0].value=result;
                         savecookie,
                     )
                 )
-                htmlrender=six.ensure_binary(t.render())
+                htmlrender=comm.ensure_binary(t.render())
                 s.send_header('Content-Length', len(htmlrender))
                 s.end_headers()
                 s.wfile.write(htmlrender)
@@ -1764,7 +1767,7 @@ document.getElementsByName("sha1str")[0].value=result;
                     s.send_header('Connection', 'Keep-Alive')
                     s.send_header('Content-Type', 'text/vtt; charset=UTF-8')
                     s.end_headers()
-                    s.wfile.write(six.ensure_binary(vttstr))
+                    s.wfile.write(comm.ensure_binary(vttstr))
                 except Exception as errno:
                     xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
             else:
@@ -1831,10 +1834,15 @@ document.getElementsByName("sha1str")[0].value=result;
     '''
     def serveFile(s, fid, cookiestr, changeserver, sendData,name):
         fidUrl = s.getfidUrl( fid, cookiestr)
+        xbmc.log('fidUrl=%s'%(fidUrl),level=xbmc.LOGERROR)
         if not fidUrl:
             s.send_response(403)
             return
-        filedownloadurl,downcookie=fidUrl.split('|')
+        filedownloadurl=downcookie=''
+        if fidUrl.find('|')>0:
+            filedownloadurl,downcookie=fidUrl.split('|')
+        else:
+            filedownloadurle=fidUrl
         #xbmc.log('filedownloadurl=%s downcookie=%s'%(filedownloadurl,downcookie),level=xbmc.LOGERROR)
         # if str(xbmcaddon.Addon().getSetting('direct'))=='true':
             # s.send_response(301)
@@ -1864,7 +1872,7 @@ document.getElementsByName("sha1str")[0].value=result;
         reqheaders['User-Agent']=defaultUserAgent
         reqheaders['Referer']='https://115.com/?cid=0&offset=0&mode=wangpan'
         if cookiestr=='0': cookiestr=''
-        reqheaders['Cookie']=cookiestr+downcookie+';'
+        reqheaders['Cookie']=cookiestr+';'+downcookie+';'
         #处理转发请求headers---end
         #转发请求
         req = request.Request(filedownloadurl, headers=reqheaders)
@@ -2111,7 +2119,7 @@ Set-Cookie3: UID=%s; path="/"; domain="115.com"; path_spec; domain_dot; discard;
     try:
         cookiefilename = xbmc.translatePath(os.path.join(xbmcaddon.Addon(id='plugin.video.115').getAddonInfo('path'), 'cookie.dat'))
         with open(cookiefilename, "wb") as cookieFile:
-            cookieFile.write(six.ensure_binary(cookiedat))
+            cookieFile.write(comm.ensure_binary(cookiedat))
             cookieFile.close()
         return True
     except:

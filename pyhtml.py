@@ -188,10 +188,11 @@ Full example:
 """
 
 from __future__ import print_function
+import io
 import sys
 from copy import deepcopy
 from types import GeneratorType
-import lib.six as six
+import lib.comm as comm
 
 if sys.version_info[0] >= 3:
     from typing import Dict, List  # noqa
@@ -240,9 +241,7 @@ class TagMeta(type):
     def __repr__(cls):
         return cls.__name__
 
-
-@six.python_2_unicode_compatible
-class Tag(six.with_metaclass(TagMeta, object)):  # type: ignore
+class Tag(comm.with_metaclass(TagMeta, object)):  # type: ignore
 
     safe = False  # do not escape while rendering
     self_closing = False
@@ -292,7 +291,7 @@ class Tag(six.with_metaclass(TagMeta, object)):  # type: ignore
             return "%s()" % self.name
 
     def _repr_attributes(self):
-        return ', '.join("%s=%r" % (key, value) for key, value in six.iteritems(self.attributes))
+        return ', '.join("%s=%r" % (key, value) for key, value in self.attributes.items)
 
     def _repr_children(self):
         return ', '.join(repr(child) for child in self.children)
@@ -309,7 +308,7 @@ class Tag(six.with_metaclass(TagMeta, object)):  # type: ignore
 
     def render(self, _out=None, _indent=0, **context):
         if _out is None:
-            _out = six.StringIO('')
+            _out = io.StringIO('')
 
         # Write doctype
         if self.doctype:
@@ -373,11 +372,11 @@ class Tag(six.with_metaclass(TagMeta, object)):  # type: ignore
             self._write_as_string(item, out, indent)
 
     def _write_as_string(self, s, out, indent, escape=True):
-        if isinstance(s, six.text_type) and not isinstance(out, six.StringIO):
+        if isinstance(s, str) and not isinstance(out, io.StringIO):
             s = s
         elif s is None:
             s = ''
-        elif not isinstance(s, six.string_types):
+        elif not isinstance(s, str):
             s = str(s)
 
         if escape and not self.safe:
@@ -406,11 +405,11 @@ class Tag(six.with_metaclass(TagMeta, object)):  # type: ignore
             if callable(value):
                 value = value(context)
 
-            if isinstance(value, six.text_type) and not isinstance(
-                    out, six.StringIO):
+            if isinstance(value, str) and not isinstance(
+                    out, io.StringIO):
                 value = value
 
-            if not isinstance(value, six.string_types):
+            if not isinstance(value, str):
                 value = str(value)
 
             value = _escape(value)
@@ -452,7 +451,7 @@ class Block(Tag):
 
     def render(self, _out=None, _indent=0, **context):
         if _out is None:
-            _out = six.StringIO('')
+            _out = io.StringIO('')
 
         self._write_list(self.children, _out, context, _indent)
         return _out.getvalue()
