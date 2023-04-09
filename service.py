@@ -524,7 +524,7 @@ class api_115(object):
         if data['state'] and data['data']:
             for note in data['data']:
                 #xbmc.log(msg='zzzzz: %s %s %d %d'%(pc,note['title'],int(time.time()) , int(note['update_time'])),level=xbmc.LOGERROR)
-                if (int(time.time()) - int(note['update_time']))>60*3600:
+                if (int(time.time()) - int(note['update_time']))>6*3600:
                     nidolds+=note['nid']+','
                 else:
                     if note['title']==pc:
@@ -1806,11 +1806,13 @@ document.getElementsByName("sha1str")[0].value=result;
             if fid in s.fidDownloadurl:
                 (strtime,fidUrl)=s.fidDownloadurl[fid].split(' ')
                 timespan=int(time.time())-int(strtime)
+                xbmc.log(msg='fidUrl timespan=%i'%(timespan),level=xbmc.LOGERROR)
                 if timespan>=7200:
                     fidUrl=''
             if fidUrl=='':
                 fpc=xl.getpc(fid)
                 fidUrl=xl.getfiledownloadurl(fpc)
+                xbmc.log(msg='fpc=%s;fidUrl=%s'%(fpc,fidUrl),level=xbmc.LOGERROR)
                 s.fidDownloadurl[fid]=str(int(time.time()))+' '+fidUrl
             return fidUrl
         except Exception as errno:
