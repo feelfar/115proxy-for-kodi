@@ -202,12 +202,13 @@ class api_115(object):
                                 'o':sorttype,'asc':sortasc,'offset':str(offset),'format':'json','date':'','pick_code':'','type':typefilter,'source':''})
                 data=self.urlopen('http://web.api.115.com/files/search?'+data)
             else:
-                data = parse.urlencode({'aid': '1','cid':cid,'limit':pageitem,'offset':offset,'type':typefilter,'star':star,'custom_order':'2',
-                                    'o':sorttype,'asc':sortasc,'nf':nf,'show_dir':'1','format':'json','_':str(int(time.time()))})
+                self.urlopen('https://webapi.115.com/files/order',data=parse.urlencode(encode_obj({'file_id':cid,'user_order':sorttype,'user_asc':sortasc,'fc_mix':'1'})))
+                data = parse.urlencode(encode_obj({'aid': '1','cid':cid,'limit':pageitem,'offset':offset,'type':typefilter,'star':star,'natsort':'1','fc_mix':'1',
+                                    'o':sorttype,'asc':sortasc,'nf':nf,'show_dir':'1','format':'json','_':str(int(time.time()))}))
                 if sorttype=='file_name':
                     data=self.urlopen('http://aps.115.com/natsort/files.php?'+data)
                 else:
-                    data=self.urlopen('http://web.api.115.com/files?'+data)
+                    data=self.urlopen('http://webapi.115.com/files?'+data)
             return json.loads(data[data.index('{'):])
         except:
             xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
@@ -735,7 +736,7 @@ class api_115(object):
         data=self.urlopen("https://webapi.115.com/files/download?pickcode="+pc+"&_="+tm)
         data= self.jsonload(data)
         if data['state']:
-            result=data['file_url']
+            result=data['file_url']+'|'+self.downcookie
         if not result:
             content=self.notegetpcurl(pc=pc)
             if content:
@@ -1806,13 +1807,13 @@ document.getElementsByName("sha1str")[0].value=result;
             if fid in s.fidDownloadurl:
                 (strtime,fidUrl)=s.fidDownloadurl[fid].split(' ')
                 timespan=int(time.time())-int(strtime)
-                xbmc.log(msg='fidUrl timespan=%i'%(timespan),level=xbmc.LOGERROR)
+                #xbmc.log(msg='fidUrl timespan=%i'%(timespan),level=xbmc.LOGERROR)
                 if timespan>=7200:
                     fidUrl=''
             if fidUrl=='':
                 fpc=xl.getpc(fid)
                 fidUrl=xl.getfiledownloadurl(fpc)
-                xbmc.log(msg='fpc=%s;fidUrl=%s'%(fpc,fidUrl),level=xbmc.LOGERROR)
+                #xbmc.log(msg='fpc=%s;fidUrl=%s'%(fpc,fidUrl),level=xbmc.LOGERROR)
                 s.fidDownloadurl[fid]=str(int(time.time()))+' '+fidUrl
             return fidUrl
         except Exception as errno:
@@ -1836,7 +1837,7 @@ document.getElementsByName("sha1str")[0].value=result;
     '''
     def serveFile(s, fid, cookiestr, changeserver, sendData,name):
         fidUrl = s.getfidUrl( fid, cookiestr)
-        xbmc.log('fidUrl=%s'%(fidUrl),level=xbmc.LOGERROR)
+        #xbmc.log('fidUrl=%s'%(fidUrl),level=xbmc.LOGERROR)
         if not fidUrl:
             s.send_response(403)
             return
@@ -1844,8 +1845,8 @@ document.getElementsByName("sha1str")[0].value=result;
         if fidUrl.find('|')>0:
             filedownloadurl,downcookie=fidUrl.split('|')
         else:
-            filedownloadurle=fidUrl
-        #xbmc.log('filedownloadurl=%s downcookie=%s'%(filedownloadurl,downcookie),level=xbmc.LOGERROR)
+            filedownloadurl=fidUrl
+        xbmc.log('filedownloadurl=%s downcookie=%s'%(filedownloadurl,downcookie),level=xbmc.LOGERROR)
         # if str(xbmcaddon.Addon().getSetting('direct'))=='true':
             # s.send_response(301)
             
