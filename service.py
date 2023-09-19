@@ -285,7 +285,7 @@ class api_115(object):
         self.batchrename(namedict)
         
     def getallfiles(self,cid,files):
-        data=self.getfilelist(cid=cid,offset=0,pageitem=1150,star='0',sorttype='user_ptime',sortasc='0')
+        data=self.getfilelist(cid=cid,offset=0,pageitem=1150,star='0',sorttype='user_utime',sortasc='0')
         if 'data' in data:
             resp = data['data']
             for d in resp:
@@ -422,7 +422,7 @@ class api_115(object):
         return fidsha1
     
     def exportcid(self,outlist,cid,pathdeep=0):
-        data=self.getfilelist(cid=cid,offset=0,pageitem=1150,star='0',sorttype='user_ptime',sortasc='0')
+        data=self.getfilelist(cid=cid,offset=0,pageitem=1150,star='0',sorttype='user_utime',sortasc='0')
         paths=''
         pathlist=[]
         if 'path' in data:
@@ -1171,7 +1171,7 @@ class MyHandler(BaseHTTPRequestHandler):
                 star=qs.get('star',[0])[0]
                 typefilter=qs.get('typefilter',[0])[0]
                 cursorttype=qs.get('cursorttype',['0'])[0]
-                sorttype ='user_ptime'
+                sorttype ='user_utime'
                 if cursorttype=='2' or cursorttype=='3':
                     sorttype ='file_size'
                 if cursorttype=='4' or cursorttype=='5':
@@ -1463,7 +1463,7 @@ class MyHandler(BaseHTTPRequestHandler):
                 xl = api_115('0')
                 if mode=='beginimport':
                     cid=str(qs.get('cid',[0])[0])
-                    data=xl.getfilelist(cid=cid,offset=0,pageitem=10,star='0',sorttype='user_ptime',sortasc='0')
+                    data=xl.getfilelist(cid=cid,offset=0,pageitem=10,star='0',sorttype='user_utime',sortasc='0')
                     #xbmc.log(str(data),level=xbmc.LOGERROR)
                     if data['state']:
                         cidname=''
