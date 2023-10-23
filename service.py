@@ -129,12 +129,16 @@ class api_115(object):
         if self.get_userkey() is False:
             xbmc.log(msg='Get userkey info failed!',level=xbmc.LOGERROR)
             
-    def urlopen(self,url, data=None,referer=None,binary=False):
+    def urlopen(self,url, data=None,referer=None,binary=False, **args):
         #url=url
         reponse=''
         for i in range(1,5):
             try:
-                req = request.Request(url,headers = self.headers)
+                headers=self.headers.copy()
+                if 'userAgent' in args:
+                    headers['User-Agent']=args['userAgent']
+                    del args['userAgent']
+                req = request.Request(url,headers = headers)
                 if referer:
                     req.add_header('Referer', referer)
                 opener = request.build_opener(SmartRedirectHandler)
@@ -884,6 +888,21 @@ class MyHandler(BaseHTTPRequestHandler):
         postvars = s.parse_POST()
         s.answer_request(1,postvars)
         
+    def convert_relative_to_absolute(s,m3u8_content, base_url):
+        lines = m3u8_content.split('\n')
+        absolute_lines = []
+
+        for line in lines:
+            if line.startswith('#') or line.strip() == '':
+                # Skip comments and empty lines
+                absolute_lines.append(line)
+            else:
+                absolute_url = parse.urljoin(base_url, line)
+                m3uurl='/mp2t?'+parse.urlencode(encode_obj({'url': absolute_url}))
+                absolute_lines.append(m3uurl)
+
+        return '\n'.join(absolute_lines)
+        
     def answer_request(s, sendData,postvars={}):
         try:
             urlsp=parse.urlparse(s.path)
@@ -1049,17 +1068,23 @@ class MyHandler(BaseHTTPRequestHandler):
                 try:
                     (pc,sha,name)=request_path[5:].split('/')
                     xl = api_115('0')
-                    datam=xl.urlopen('http://115.com/api/video/m3u8/'+ pc+'.m3u8')
+                    datam=xl.urlopen('https://v.anxia.com/site/api/video/m3u8/'+ pc+'.m3u8',userAgent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36')
                     #s.wfile.write(datam)
                     m3u8urls=[]
                     for match in re.finditer('BANDWIDTH=(?P<bandwidth>.*?)\x2C.*?(?P<url>http.*?)\r', datam, re.IGNORECASE | re.DOTALL):
                         m3u8urls.append((int(match.group('bandwidth')),match.group('url')))
                     if len(m3u8urls)>0:
                         m3u8urls.sort(key=lambda x:x[0],reverse=True)
-                        url= m3u8urls[0][1]
-                        extm3u='''#EXTM3U
+                        m3u8url= m3u8urls[0][1]
+                        parsed_url = parse.urlparse(m3u8url)
+                        protocol = parsed_url.scheme
+                        hostname = parsed_url.netloc
+                        base_url = protocol+'://'+hostname+'/'
+                        extm3u=xl.urlopen(m3u8url,userAgent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36')
+                        extm3u=s.convert_relative_to_absolute(extm3u,base_url)
+                        #extm3u='''#EXTM3U
 #EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=15000000,RESOLUTION=640x426,NAME='YH'
-%s'''%(url)
+#%s'''%(url)
                         # urlsp=urlparse(url)
                         # scheme=urlsp.scheme
                         # netloc=urlsp.netloc
@@ -1072,7 +1097,7 @@ class MyHandler(BaseHTTPRequestHandler):
                         # datam=datam.replace('\n/','\n%s://%s/'%(scheme,netloc))
                         #s.wfile.write(datam)
                         s.send_response(200)
-                        s.send_header('Content-type', 'application/x-mpegURL')
+                        s.send_header('Content-type', 'application/vnd.apple.mpegurl')
                         s.send_header('Content-Length', len(extm3u))
                         s.end_headers()
                         s.wfile.write(comm.ensure_binary(extm3u))
@@ -1095,7 +1120,28 @@ class MyHandler(BaseHTTPRequestHandler):
                         s.wfile.write(htmlrender)
                 except Exception as errno:
                     xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
-                    
+            elif request_path=='/mp2t':
+                qs=parse.parse_qs(urlsp.query, keep_blank_values=True)
+                url=qs.get('url',['0'])[0]
+                res=s.serveMP2T(url)
+            elif request_path=='/covm3u':
+                xl = api_115('0')
+                qs=parse.parse_qs(urlsp.query, keep_blank_values=True)
+                m3u8url=qs.get('url',['0'])[0]
+                try:
+                    parsed_url = parse.urlparse(m3u8url)
+                    protocol = parsed_url.scheme
+                    hostname = parsed_url.netloc
+                    base_url = protocol+'://'+hostname+'/'
+                    extm3u=xl.urlopen(m3u8url,userAgent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36')
+                    extm3u=s.convert_relative_to_absolute(extm3u,base_url)
+                    s.send_response(200)
+                    s.send_header('Content-type', 'application/vnd.apple.mpegurl')
+                    s.send_header('Content-Length', len(extm3u))
+                    s.end_headers()
+                    s.wfile.write(comm.ensure_binary(extm3u))
+                except Exception as errno:
+                    xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
             elif request_path=='/play':
                 try:
                     qs=parse.parse_qs(urlsp.query, keep_blank_values=True)
@@ -1832,6 +1878,63 @@ document.getElementsByName("sha1str")[0].value=result;
             except:
                 time.sleep(icount+1)
                 continue
+    def serveMP2T(s, url):
+        reqheaders={}
+        for key in s.headers:
+            #xbmc.log(msg='zzzdebug:XBMCLocalProxy: reqheaders %s:%s'%(key, s.headers[key]))
+            if key.lower()!='host' and key.lower()!='user-agent':
+                #opener.addheader(key,s.headers[key])
+                #request.add_header(key, s.headers[key])
+                reqheaders[key]=s.headers[key]
+        
+        reqheaders['User-Agent']='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36'
+        reqheaders['Referer']='https://v.anxia.com/'
+        reqheaders['Origin']='http://115.com/'
+
+        #req = request.Request('https://cors-anywhere.herokuapp.com/'+url, headers=reqheaders)
+        wcode=200
+        wheaders={}
+        #wheaders={'Connection':'Keep-Alive','Keep-Alive':'timeout=20, max=100'}
+        try:
+            remote_request = request.Request(url, None, reqheaders)
+            with request.urlopen(remote_request) as response:
+                #s.protocal_version ='HTTP/1.1'
+                wcode=response.code
+                headers=response.info()
+                #headers.pop('Access-Control-Allow-Credentials', None)
+                #xbmc.log(msg=str(headers),level=xbmc.LOGERROR)
+                keys=['content-length','content-range','accept-ranges','date','connection','access-control-allow-methods','access-control-max-age','etag']
+                headerkeys = set(k.lower() for k in headers)
+                for key in headerkeys:
+                    try:
+                        if key=='content-length' and s.fileSize[fid]==-1:
+                            #文件大小
+                            s.fileSize[fid]= int(headers[key])
+                        if key.lower() in keys:
+                            #xbmc.log(msg='zzzdebug:'+key+':'+headers[key],level=xbmc.LOGERROR)
+                            wheaders[key]=headers[key]
+                    except Exception as errno:
+                        xbmc.log(msg='zzzdebug:sendheaderERR:%s'%(errno),level=xbmc.LOGERROR)
+                        pass
+                wheaders['Access-Control-Allow-Origin']='*'
+                s.send_response(wcode)
+                for key in wheaders:
+                    s.send_header(key,wheaders[key])
+                s.end_headers()
+                fileout=s.wfile
+                shutil.copyfileobj(response,fileout)
+        except:
+            xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
+            s.send_response(404)
+            err=True
+        finally:
+            #xbmc.log('lockcount-1 HEAD over err=%s'%str(err),level=xbmc.LOGERROR)
+            response.close()
+            response=None
+        try:
+            s.wfile.close()
+        except:
+            pass
     '''
     Sends the requested file and add additional headers.
     '''
@@ -1914,7 +2017,7 @@ document.getElementsByName("sha1str")[0].value=result;
             mimetype, _ =mimetypes.guess_type(name.lower())
             if not mimetype:
                 mimetype='application/octet-stream'
-            xbmc.log(msg='zzzdebug:mimetype:%s'%(mimetype),level=xbmc.LOGERROR)
+            #xbmc.log(msg='zzzdebug:mimetype:%s'%(mimetype),level=xbmc.LOGERROR)
             wheaders['content-type']=mimetype
             
             
