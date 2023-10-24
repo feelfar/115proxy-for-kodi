@@ -1138,6 +1138,10 @@ class MyHandler(BaseHTTPRequestHandler):
                     s.send_response(200)
                     s.send_header('Content-type', 'application/vnd.apple.mpegurl')
                     s.send_header('Content-Length', len(extm3u))
+                    s.send_header('Access-Control-Allow-Credentials', False)
+                    s.send_header('Access-Control-Allow-Origin','*')
+                    s.send_header('Timing-Allow-Origin','*')
+                    s.send_header('Connection', 'keep-alive')
                     s.end_headers()
                     s.wfile.write(comm.ensure_binary(extm3u))
                 except Exception as errno:
