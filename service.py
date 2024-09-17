@@ -59,7 +59,7 @@ __lib__  = xbmc.translatePath( os.path.join( __cwd__, 'lib' ) )
 sys.path.append (__lib__)
 
 from pyhtml import *
-defaultUserAgent='Mozilla/5.0;  Mac  OS  X/10.15.7;  115Desktop/2.0.1.7'
+defaultUserAgent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 115Browser/27.0.3.7'
 
 _cookiestr=''
 
