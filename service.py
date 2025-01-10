@@ -2130,7 +2130,7 @@ PORT_NUMBER =  int(xbmcaddon.Addon().getSetting('listen_port'))
 def loadcookiefile(cformat='simple'):
     cstr=''
     cookiejar = cookielib.LWPCookieJar()
-    cid=seid=uid=''
+    cid=seid=uid=kid=''
     try:
         cookiefile = xbmc.translatePath(os.path.join(xbmcaddon.Addon(id='plugin.video.115').getAddonInfo('path'), 'cookie.dat'))
         if os.path.exists(cookiefile):
@@ -2140,6 +2140,7 @@ def loadcookiefile(cformat='simple'):
                 if cookie.name.upper()=='CID': cid=cookie.value
                 if cookie.name.upper()=='SEID': seid=cookie.value
                 if cookie.name.upper()=='UID': uid=cookie.value
+                if cookie.name.upper()=='KID': kid=cookie.value
         if cformat.lower()=='json':
             cookiejson=[{
                             "domain": "115.com",
@@ -2185,6 +2186,21 @@ def loadcookiefile(cformat='simple'):
                             "name": "UID",
                             "value": uid,
                             "id": 3
+                        },
+                        {
+                            "domain": "115.com",
+                            "hostOnly": False,
+                            "httpOnly": True,
+                            "path": "/",
+                            "sameSite": "lax",
+                            "firstPartyDomain": "",
+                            "partitionKey": None,
+                            "secure": False,
+                            "session": True,
+                            "isProtected":True,
+                            "name": "KID",
+                            "value": kid,
+                            "id": 4
                         }]
             cstr=json.dumps(cookiejson,indent=4)
 
@@ -2194,13 +2210,13 @@ Set-Cookie3: CID=%s; path="/"; domain="115.com"; path_spec; domain_dot; discard;
 Set-Cookie3: SEID=%s; path="/"; domain="115.com"; path_spec; domain_dot; discard; HttpOnly=None; version=0
 Set-Cookie3: UID=%s; path="/"; domain="115.com"; path_spec; domain_dot; discard; HttpOnly=None; version=0'''%(cid,seid,uid)
         else:
-            cstr='CID=%s;SEID=%s;UID=%s'%(cid,seid,uid)
+            cstr='CID=%s;SEID=%s;UID=%s;KID=%s'%(cid,seid,uid,kid)
         return cstr
     except:
         xbmc.log(msg=format_exc(),level=xbmc.LOGERROR)
 
 def savecookiefile(cstr):
-    cid=seid=uid=''
+    cid=seid=uid=kid=''
     try:
         cookies=json.loads(cstr)
         for cookie in cookies:
@@ -2208,6 +2224,7 @@ def savecookiefile(cstr):
                 if cookie['name'] == 'CID': cid = cookie['value']
                 if cookie['name'] == 'SEID': seid = cookie['value']
                 if cookie['name'] == 'UID': uid = cookie['value']
+                if cookie['name'] == 'KID': kid = cookie['value']
     except:
         cid=''
     if cid=='':
@@ -2220,11 +2237,15 @@ def savecookiefile(cstr):
         match = re.search(r'UID\s*\x3D\s*(?P<value>[A-Za-z0-9\x5F]+)', cstr, re.IGNORECASE | re.MULTILINE)
         if match:
             uid = match.group('value')
+        match = re.search(r'KID\s*\x3D\s*(?P<value>[A-Za-z0-9\x5F]+)', cstr, re.IGNORECASE | re.MULTILINE)
+        if match:
+            kid = match.group('value')
     if cid=='': return False
     cookiedat='''#LWP-Cookies-2.0
 Set-Cookie3: CID=%s; path="/"; domain="115.com"; path_spec; domain_dot; discard; HttpOnly=None; version=0
 Set-Cookie3: SEID=%s; path="/"; domain="115.com"; path_spec; domain_dot; discard; HttpOnly=None; version=0
-Set-Cookie3: UID=%s; path="/"; domain="115.com"; path_spec; domain_dot; discard; HttpOnly=None; version=0'''%(cid,seid,uid)
+Set-Cookie3: UID=%s; path="/"; domain="115.com"; path_spec; domain_dot; discard; HttpOnly=None; version=0
+Set-Cookie3: KID=%s; path="/"; domain="115.com"; path_spec; domain_dot; discard; HttpOnly=None; version=0'''%(cid,seid,uid,kid)
     
     try:
         cookiefilename = xbmc.translatePath(os.path.join(xbmcaddon.Addon(id='plugin.video.115').getAddonInfo('path'), 'cookie.dat'))
